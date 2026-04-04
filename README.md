@@ -345,6 +345,12 @@ docker compose up -d --build
 
 - [docs/github-actions-vps-deploy.md](docs/github-actions-vps-deploy.md)
 
+对 4 GB 左右的小内存 VPS，建议优先使用默认的轻量 Docker 配置：
+
+- 仅安装 Playwright Chromium
+- 默认 `SOLVER_BROWSER_TYPE=chromium`
+- 默认不预装 Camoufox（`INSTALL_CAMOUFOX=0`）
+
 ### 访问
 
 ```text

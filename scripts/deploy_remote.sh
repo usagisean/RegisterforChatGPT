@@ -20,6 +20,24 @@ else
   exit 1
 fi
 
-"${COMPOSE[@]}" -f docker-compose.yml -f docker-compose.deploy.yml up -d --build --remove-orphans
+LOG_FILE="${APP_DIR}/deploy.log"
+
+# Keep some output flowing during long image builds so SSH sessions do not look stuck.
+(
+  while true; do
+    printf '[deploy] building image... %s\n' "$(date '+%F %T')"
+    sleep 20
+  done
+) &
+HEARTBEAT_PID=$!
+trap 'kill "${HEARTBEAT_PID}" >/dev/null 2>&1 || true' EXIT
+
+"${COMPOSE[@]}" -f docker-compose.yml -f docker-compose.deploy.yml up -d --build --remove-orphans \
+  >"${LOG_FILE}" 2>&1
+
+kill "${HEARTBEAT_PID}" >/dev/null 2>&1 || true
+trap - EXIT
+
+tail -n 120 "${LOG_FILE}" || true
 "${COMPOSE[@]}" -f docker-compose.yml -f docker-compose.deploy.yml ps
 "${COMPOSE[@]}" -f docker-compose.yml -f docker-compose.deploy.yml logs --no-color --tail=60 app || true

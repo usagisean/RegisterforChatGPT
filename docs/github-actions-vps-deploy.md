@@ -72,6 +72,13 @@ nano .env
 - `APP_JWT_SECRET`
 - `SMSTOME_COOKIE`（如果你会用）
 
+对小内存 VPS，默认建议保持：
+
+- `SOLVER_BROWSER_TYPE=chromium`
+- `INSTALL_CAMOUFOX=0`
+
+这会显著减小镜像体积并缩短首次构建时间。
+
 ## 5. 触发部署
 
 推送到 `main` 就会自动部署：

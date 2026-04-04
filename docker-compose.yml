@@ -6,6 +6,7 @@ services:
       args:
         CAMOUFOX_VERSION: ${CAMOUFOX_VERSION:-135.0.1}
         CAMOUFOX_RELEASE: ${CAMOUFOX_RELEASE:-beta.24}
+        INSTALL_CAMOUFOX: ${INSTALL_CAMOUFOX:-0}
     container_name: any-auto-register
     init: true
     restart: unless-stopped
@@ -19,7 +20,7 @@ services:
       SOLVER_PORT: "8889"
       SOLVER_BIND_HOST: 0.0.0.0
       LOCAL_SOLVER_URL: http://127.0.0.1:8889
-      SOLVER_BROWSER_TYPE: ${SOLVER_BROWSER_TYPE:-camoufox}
+      SOLVER_BROWSER_TYPE: ${SOLVER_BROWSER_TYPE:-chromium}
       PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-}
     ports:
       - "8000:8000"

@@ -50,6 +50,16 @@ jobs:
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -p "${DEPLOY_PORT:-22}" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          cat >> ~/.ssh/config <<EOF
+          Host deploy-target
+            HostName ${DEPLOY_HOST}
+            User ${DEPLOY_USER:-root}
+            Port ${DEPLOY_PORT:-22}
+            IdentityFile ~/.ssh/id_ed25519
+            ServerAliveInterval 30
+            ServerAliveCountMax 10
+            TCPKeepAlive yes
+          EOF
 
       - name: Sync repository to VPS
         env:
@@ -60,7 +70,7 @@ jobs:
         run: |
           set -euo pipefail
           deploy_path="${DEPLOY_PATH:-/opt/registerforchatgpt}"
-          ssh -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER}@${DEPLOY_HOST}" "
+          ssh deploy-target "
             set -euo pipefail
             mkdir -p '${deploy_path}'
             find '${deploy_path}' -mindepth 1 -maxdepth 1 \
@@ -83,7 +93,7 @@ jobs:
             --exclude='frontend/node_modules' \
             --exclude='electron/node_modules' \
             -czf - . | \
-            ssh -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            ssh deploy-target \
               "tar -xzf - -C '${deploy_path}'"
 
       - name: Run remote deploy
@@ -95,5 +105,5 @@ jobs:
         run: |
           set -euo pipefail
           deploy_path="${DEPLOY_PATH:-/opt/registerforchatgpt}"
-          ssh -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+          ssh deploy-target \
             "cd '${deploy_path}' && chmod +x scripts/deploy_remote.sh && ./scripts/deploy_remote.sh"
