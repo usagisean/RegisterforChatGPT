@@ -60,20 +60,31 @@ jobs:
         run: |
           set -euo pipefail
           deploy_path="${DEPLOY_PATH:-/opt/registerforchatgpt}"
-          ssh -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p '${deploy_path}'"
-          rsync -az --delete \
-            --exclude '.git/' \
-            --exclude '.github/' \
-            --exclude '.venv/' \
-            --exclude '__pycache__/' \
-            --exclude '*.pyc' \
-            --exclude '.env' \
-            --exclude 'data/' \
-            --exclude '_ext_targets/' \
-            --exclude 'external_logs/' \
-            --exclude 'frontend/node_modules/' \
-            --exclude 'electron/node_modules/' \
-            ./ "${DEPLOY_USER}@${DEPLOY_HOST}:${deploy_path}/"
+          ssh -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER}@${DEPLOY_HOST}" "
+            set -euo pipefail
+            mkdir -p '${deploy_path}'
+            find '${deploy_path}' -mindepth 1 -maxdepth 1 \
+              ! -name '.env' \
+              ! -name 'data' \
+              ! -name '_ext_targets' \
+              ! -name 'external_logs' \
+              -exec rm -rf {} +
+          "
+          tar \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.venv' \
+            --exclude='__pycache__' \
+            --exclude='*.pyc' \
+            --exclude='.env' \
+            --exclude='data' \
+            --exclude='_ext_targets' \
+            --exclude='external_logs' \
+            --exclude='frontend/node_modules' \
+            --exclude='electron/node_modules' \
+            -czf - . | \
+            ssh -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+              "tar -xzf - -C '${deploy_path}'"
 
       - name: Run remote deploy
         env:
