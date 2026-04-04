@@ -56,10 +56,15 @@ def _ensure_task_mutable(task_id: str) -> None:
 
 def _prepare_register_request(req: RegisterTaskRequest) -> RegisterTaskRequest:
     from core.config_store import config_store
+    from core.proxy_utils import normalize_proxy_url
 
     req_data = req.model_dump()
     req_data["extra"] = deepcopy(req_data.get("extra") or {})
     prepared = RegisterTaskRequest(**req_data)
+    try:
+        prepared.proxy = normalize_proxy_url(prepared.proxy)
+    except ValueError as exc:
+        raise HTTPException(400, f"代理格式不正确: {exc}") from exc
 
     mail_provider = prepared.extra.get("mail_provider") or config_store.get(
         "mail_provider", ""

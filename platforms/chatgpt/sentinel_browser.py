@@ -9,7 +9,10 @@ from core.browser_runtime import (
     ensure_browser_display_available,
     resolve_browser_headless,
 )
-from core.proxy_utils import build_playwright_proxy_config
+from core.proxy_utils import (
+    build_playwright_proxy_config,
+    get_playwright_proxy_unsupported_reason,
+)
 
 
 def _flow_page_url(flow: str) -> str:
@@ -57,6 +60,11 @@ def get_sentinel_token_via_browser(
             "--disable-blink-features=AutomationControlled",
         ],
     }
+    unsupported_proxy_reason = get_playwright_proxy_unsupported_reason(proxy)
+    if unsupported_proxy_reason:
+        logger(f"Sentinel Browser 跳过: {unsupported_proxy_reason}")
+        return None
+
     proxy_config = build_playwright_proxy_config(proxy)
     if proxy_config:
         launch_args["proxy"] = proxy_config
@@ -64,8 +72,9 @@ def get_sentinel_token_via_browser(
     logger(f"Sentinel Browser 启动: flow={flow}, url={target_url}")
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(**launch_args)
+        browser = None
         try:
+            browser = p.chromium.launch(**launch_args)
             context = browser.new_context(
                 viewport={"width": 1440, "height": 900},
                 user_agent=(
@@ -144,4 +153,5 @@ def get_sentinel_token_via_browser(
             logger(f"Sentinel Browser 异常: {e}")
             return None
         finally:
-            browser.close()
+            if browser is not None:
+                browser.close()

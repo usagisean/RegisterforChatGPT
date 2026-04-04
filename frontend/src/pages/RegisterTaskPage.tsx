@@ -279,7 +279,7 @@ export default function RegisterTaskPage() {
               <InputNumber min={0} precision={1} step={0.5} style={{ width: '100%' }} placeholder="0" />
             </Form.Item>
             <Form.Item name="proxy" label="代理 (可选)" style={{ flex: 1 }}>
-              <Input placeholder="http://user:pass@host:port" />
+              <Input placeholder="支持 http://user:pass@host:port、socks5://user:pass@host:port 或 host:port:user:pass" />
             </Form.Item>
           </Space>
           {platform === 'chatgpt' && (

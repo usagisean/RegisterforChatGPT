@@ -341,6 +341,10 @@ docker compose up -d --build
 
 当前 Dockerfile 已改为通过固定直链安装 Camoufox，以避免构建时访问 GitHub Releases API 触发匿名限流。
 
+如需将仓库推到 GitHub 私有仓库并通过 Actions 自动部署到 VPS，可参考：
+
+- [docs/github-actions-vps-deploy.md](docs/github-actions-vps-deploy.md)
+
 ### 访问
 
 ```text
