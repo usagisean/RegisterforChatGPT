@@ -9,6 +9,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from core.service_targets import rewrite_loopback_url_for_container
 from platforms.chatgpt.status_probe import CODEX_USER_AGENT, extract_chatgpt_account_id
 from services.chatgpt_account_state import is_account_deactivated_message
 
@@ -35,7 +36,8 @@ def _get_config_value(key: str, default: str = "") -> str:
 
 
 def _base_url(api_url: str | None = None) -> str:
-    return str(api_url or _get_config_value("cliproxyapi_base_url", DEFAULT_CLIPROXYAPI_BASE_URL) or DEFAULT_CLIPROXYAPI_BASE_URL).rstrip("/")
+    raw = str(api_url or _get_config_value("cliproxyapi_base_url", DEFAULT_CLIPROXYAPI_BASE_URL) or DEFAULT_CLIPROXYAPI_BASE_URL)
+    return rewrite_loopback_url_for_container(raw).rstrip("/")
 
 
 def _api_key(api_key: str | None = None) -> str:

@@ -12,6 +12,8 @@ import hashlib
 from curl_cffi import requests as cffi_requests
 from curl_cffi import CurlMime
 
+from core.service_targets import rewrite_loopback_url_for_container
+
 logger = logging.getLogger(__name__)
 
 
@@ -206,6 +208,7 @@ def upload_to_cpa(
         api_key = _get_config_value("cpa_api_key")
     if not api_url:
         return False, "CPA API URL 未配置"
+    api_url = rewrite_loopback_url_for_container(api_url)
 
     upload_url = f"{api_url.rstrip('/')}/v0/management/auth-files"
 
@@ -271,6 +274,7 @@ def upload_to_team_manager(
         return False, "Team Manager API URL 未配置"
     if not api_key:
         return False, "Team Manager API Key 未配置"
+    api_url = rewrite_loopback_url_for_container(api_url)
 
     email = getattr(account, "email", "")
     access_token = getattr(account, "access_token", "")
@@ -331,6 +335,7 @@ def upload_to_codex_proxy(
         return False, "CodexProxy API URL 未配置"
     if not api_key:
         return False, "CodexProxy Admin Key 未配置"
+    api_url = rewrite_loopback_url_for_container(api_url)
 
     refresh_token = getattr(account, "refresh_token", "")
     if not refresh_token:
@@ -391,6 +396,7 @@ def upload_at_to_codex_proxy(
         return False, "CodexProxy API URL 未配置"
     if not api_key:
         return False, "CodexProxy Admin Key 未配置"
+    api_url = rewrite_loopback_url_for_container(api_url)
 
     access_token = getattr(account, "access_token", "")
     if not access_token:
@@ -444,7 +450,7 @@ def test_cpa_connection(api_url: str, api_token: str, proxy: str = None) -> Tupl
     if not api_token:
         return False, "API Token 不能为空"
 
-    api_url = api_url.rstrip("/")
+    api_url = rewrite_loopback_url_for_container(api_url).rstrip("/")
     test_url = f"{api_url}/v0/management/auth-files"
     headers = {"Authorization": f"Bearer {api_token}"}
 
