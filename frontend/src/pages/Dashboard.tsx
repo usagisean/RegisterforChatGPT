@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Card, Row, Col, Statistic, Progress, Tag, Button, Spin } from 'antd'
+import { Progress, Tag, Button, Spin } from 'antd'
 import {
   UserOutlined,
   CheckCircleOutlined,
@@ -7,11 +7,14 @@ import {
   CloseCircleOutlined,
   ReloadOutlined,
 } from '@ant-design/icons'
+import { ActiveTaskMonitor } from '@/components/ActiveTaskMonitor'
+import { HeroChip, PageHero } from '@/components/PageHero'
+import { StatTile } from '@/components/StatTile'
+import { SurfacePanel } from '@/components/SurfacePanel'
 import { apiFetch } from '@/lib/utils'
 
 const PLATFORM_COLORS: Record<string, string> = {
-  trae: '#3b82f6',
-  cursor: '#10b981',
+  chatgpt: '#5b8cff',
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -25,6 +28,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function Dashboard() {
   const [stats, setStats] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const visiblePlatformEntries = Object.entries(stats?.by_platform || {}).filter(([platform]) => platform === 'chatgpt')
 
   const load = async () => {
     setLoading(true)
@@ -45,7 +49,7 @@ export default function Dashboard() {
       title: '总账号数',
       value: stats?.total ?? 0,
       icon: <UserOutlined style={{ fontSize: 32 }} />,
-      color: '#6366f1',
+      color: '#5b8cff',
     },
     {
       title: '试用中',
@@ -68,85 +72,89 @@ export default function Dashboard() {
   ]
 
   return (
-    <div style={{ padding: 0 }}>
-      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 'bold', margin: 0 }}>仪表盘</h1>
-          <p style={{ color: '#7a8ba3', marginTop: 4 }}>账号总览</p>
-        </div>
-        <Button icon={<ReloadOutlined spin={loading} />} onClick={load} loading={loading}>
-          刷新
-        </Button>
+    <div className="page-shell">
+      <PageHero
+        title="总览"
+        description="查看账号状态、代理情况和当前任务。"
+        actions={(
+          <Button icon={<ReloadOutlined spin={loading} />} onClick={load} loading={loading}>
+            刷新
+          </Button>
+        )}
+        meta={(
+          <>
+            <HeroChip>总账号 {stats?.total ?? 0}</HeroChip>
+            <HeroChip>试用中 {stats?.by_status?.trial ?? 0}</HeroChip>
+          </>
+        )}
+      />
+
+      <ActiveTaskMonitor />
+
+      <div className="dashboard-metrics">
+        {statCards.map(({ title, value, icon, color }) => (
+          <StatTile
+            key={title}
+            label={title}
+            value={value}
+            icon={<span style={{ color }}>{icon}</span>}
+            tone={title === '已失效' ? 'danger' : title === '已订阅' ? 'success' : title === '试用中' ? 'warning' : 'default'}
+          />
+        ))}
       </div>
 
-      <Row gutter={[16, 16]}>
-        {statCards.map(({ title, value, icon, color }) => (
-          <Col xs={24} sm={12} lg={6} key={title}>
-            <Card>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Statistic title={title} value={value} />
-                <div style={{ color, opacity: 0.8 }}>{icon}</div>
-              </div>
-            </Card>
-          </Col>
-        ))}
-      </Row>
-
-      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        <Col xs={24} lg={12}>
-          <Card title="平台分布">
-            {loading ? (
-              <div style={{ textAlign: 'center', padding: 40 }}>
-                <Spin />
-              </div>
-            ) : stats ? (
-              Object.entries(stats.by_platform || {}).map(([platform, count]: any) => (
-                <div key={platform} style={{ marginBottom: 16 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <Tag color={PLATFORM_COLORS[platform] || 'default'}>{platform}</Tag>
-                    <span>{count}</span>
+      <div className="dashboard-grid">
+        <SurfacePanel title="平台分布" subtitle="当前只展示 ChatGPT 数据。">
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 40 }}>
+              <Spin />
+            </div>
+          ) : stats ? (
+            visiblePlatformEntries.length > 0 ? (
+              <div className="panel-list">
+                {visiblePlatformEntries.map(([platform, count]: any) => (
+                  <div key={platform} className="metric-line">
+                    <div className="metric-line__head">
+                      <Tag color={PLATFORM_COLORS[platform] || 'default'}>{platform}</Tag>
+                      <span>{count}</span>
+                    </div>
+                    <Progress
+                      percent={stats.total ? Math.round((count / stats.total) * 100) : 0}
+                      strokeColor={PLATFORM_COLORS[platform] || '#6366f1'}
+                      showInfo={false}
+                    />
                   </div>
-                  <Progress
-                    percent={stats.total ? Math.round((count / stats.total) * 100) : 0}
-                    strokeColor={PLATFORM_COLORS[platform] || '#6366f1'}
-                    showInfo={false}
-                  />
-                </div>
-              ))
-            ) : (
-              <div style={{ textAlign: 'center', color: '#7a8ba3' }}>加载中...</div>
-            )}
-          </Card>
-        </Col>
-
-        <Col xs={24} lg={12}>
-          <Card title="状态分布">
-            {loading ? (
-              <div style={{ textAlign: 'center', padding: 40 }}>
-                <Spin />
+                ))}
               </div>
-            ) : stats ? (
-              Object.entries(stats.by_status || {}).map(([status, count]: any) => (
-                <div
-                  key={status}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '8px 0',
-                    borderBottom: '1px solid rgba(255,255,255,0.1)',
-                  }}
-                >
-                  <Tag color={STATUS_COLORS[status] || 'default'}>{status}</Tag>
-                  <span>{count}</span>
-                </div>
-              ))
             ) : (
-              <div style={{ textAlign: 'center', color: '#7a8ba3' }}>加载中...</div>
-            )}
-          </Card>
-        </Col>
-      </Row>
+              <div className="empty-copy">当前还没有 ChatGPT 账号。</div>
+            )
+          ) : (
+            <div className="empty-copy">加载中...</div>
+          )}
+        </SurfacePanel>
+
+        <SurfacePanel title="状态分布" subtitle="用更短的标签查看当前账号状态。">
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 40 }}>
+              <Spin />
+            </div>
+          ) : stats ? (
+            <div className="panel-list">
+              {Object.entries(stats.by_status || {}).map(([status, count]: any) => (
+                <div key={status} className="panel-row">
+                  <div className="panel-row__label">
+                    <Tag color={STATUS_COLORS[status] || 'default'}>{status}</Tag>
+                  </div>
+                  <div className="panel-row__value">{count}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-copy">加载中...</div>
+          )}
+        </SurfacePanel>
+      </div>
     </div>
   )
 }

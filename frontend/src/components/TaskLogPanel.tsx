@@ -258,36 +258,38 @@ export function TaskLogPanel({ taskId, onDone }: TaskLogPanelProps) {
           flex: 1,
           overflowY: 'auto',
           overflowX: 'hidden',
-          background: '#ffffff',
-          border: '1px solid #e5e7eb',
-          borderRadius: 8,
-          padding: 12,
+          background: '#05070a',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 18,
+          padding: 16,
           fontFamily: 'monospace',
-          fontSize: 12,
+          fontSize: 13,
           minHeight: 320,
-          maxHeight: '65vh',
+          maxHeight: '68vh',
           userSelect: 'text',
           WebkitUserSelect: 'text',
           cursor: 'text',
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
+          boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.02)',
         }}
       >
-        {lines.length === 0 && !error && <div style={{ color: '#9ca3af' }}>等待日志...</div>}
-        {error && <div style={{ color: '#dc2626' }}>{error}</div>}
+        {lines.length === 0 && !error && <div style={{ color: '#94a3b8' }}>等待日志...</div>}
+        {error && <div style={{ color: '#ff7a7a' }}>{error}</div>}
         {lines.map((line, index) => (
           <div
             key={index}
             style={{
-              lineHeight: 1.5,
+              lineHeight: 1.65,
+              textShadow: '0 0 1px rgba(255,255,255,0.12)',
               color:
                 line.includes('✓') || line.includes('成功')
-                  ? '#059669'
+                  ? '#33d69f'
                   : line.includes('✗') || line.includes('失败') || line.includes('错误')
-                    ? '#dc2626'
+                    ? '#ff7575'
                     : line.includes('停止') || line.includes('跳过')
-                      ? '#d97706'
-                      : '#1f2937',
+                      ? '#ffbf47'
+                      : '#f3f6fb',
             }}
           >
             {line}

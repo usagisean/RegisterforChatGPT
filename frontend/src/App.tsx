@@ -1,28 +1,31 @@
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { App as AntdApp, ConfigProvider, Layout, Menu, Button, Spin } from 'antd'
+import { App as AntdApp, ConfigProvider, Button, Spin, Space, Tag, Typography } from 'antd'
 import {
   DashboardOutlined,
   UserOutlined,
   GlobalOutlined,
   HistoryOutlined,
   SettingOutlined,
+  RocketOutlined,
   SunOutlined,
   MoonOutlined,
   LogoutOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons'
 import zhCN from 'antd/locale/zh_CN'
 import Dashboard from '@/pages/Dashboard'
+import ConsolePage from '@/pages/Console'
 import Accounts from '@/pages/Accounts'
 import RegisterTaskPage from '@/pages/RegisterTaskPage'
 import Proxies from '@/pages/Proxies'
 import Settings from '@/pages/Settings'
 import TaskHistory from '@/pages/TaskHistory'
-import Login from '@/pages/Login'
 import { darkTheme, lightTheme } from './theme'
-import { apiFetch, clearToken, getToken } from '@/lib/utils'
+import { clearToken, getToken } from '@/lib/utils'
+import Login from '@/pages/Login'
 
-const { Sider, Content } = Layout
+const { Text } = Typography
 
 function ProtectedLayout() {
   const navigate = useNavigate()
@@ -57,14 +60,13 @@ function AppContent() {
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>(() =>
     (localStorage.getItem('theme') as 'dark' | 'light') || 'dark'
   )
-  const [collapsed, setCollapsed] = useState(false)
-  const [platforms, setPlatforms] = useState<{ key: string; label: string }[]>([])
   const [hasPassword, setHasPassword] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
 
   useEffect(() => {
     document.documentElement.classList.toggle('light', themeMode === 'light')
+    document.documentElement.dataset.theme = themeMode
     document.documentElement.style.setProperty(
       '--sider-trigger-border',
       themeMode === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)'
@@ -76,166 +78,110 @@ function AppContent() {
     fetch('/api/auth/status').then(r => r.json()).then(s => setHasPassword(s.has_password)).catch(() => {})
   }, [])
 
-  useEffect(() => {
-    apiFetch('/platforms')
-      .then(d => setPlatforms((d || [])
-        .filter((p: any) => !['tavily', 'cursor'].includes(p.name))
-        .map((p: any) => ({ key: p.name, label: p.display_name }))))
-      .catch(() => {})
-  }, [])
-
   const isLight = themeMode === 'light'
   const currentTheme = isLight ? lightTheme : darkTheme
-
-  const getSelectedKey = () => {
-    const path = location.pathname
-    if (path === '/') return ['/']
-    if (path.startsWith('/accounts')) return [path]
-    if (path === '/history') return ['/history']
-    if (path === '/proxies') return ['/proxies']
-    if (path === '/settings') return ['/settings']
-    return ['/']
-  }
-
-  const menuItems = [
-    {
-      key: '/',
-      icon: <DashboardOutlined />,
-      label: '仪表盘',
-    },
-    {
-      key: '/accounts',
-      icon: <UserOutlined />,
-      label: '平台管理',
-      children: platforms.map(p => ({
-        key: `/accounts/${p.key}`,
-        label: p.label,
-      })),
-    },
-    {
-      key: '/history',
-      icon: <HistoryOutlined />,
-      label: '任务历史',
-    },
-    {
-      key: '/proxies',
-      icon: <GlobalOutlined />,
-      label: '代理管理',
-    },
-    {
-      key: '/settings',
-      icon: <SettingOutlined />,
-      label: '全局配置',
-    },
+  const navItems = [
+    { key: '/', icon: <DashboardOutlined />, label: '总览', description: '今日状态' },
+    { key: '/console', icon: <ThunderboltOutlined />, label: '控制台', description: '实时任务' },
+    { key: '/accounts/chatgpt', icon: <UserOutlined />, label: '账号', description: 'ChatGPT' },
+    { key: '/register', icon: <RocketOutlined />, label: '任务', description: '新建与跟踪' },
+    { key: '/history', icon: <HistoryOutlined />, label: '历史', description: '执行记录' },
+    { key: '/proxies', icon: <GlobalOutlined />, label: '代理', description: '代理池' },
+    { key: '/settings', icon: <SettingOutlined />, label: '设置', description: '服务与安全' },
   ]
+
+  const activeNavKey = (() => {
+    const path = location.pathname
+    if (path === '/accounts') return '/accounts/chatgpt'
+    if (path.startsWith('/accounts')) return '/accounts/chatgpt'
+    if (path.startsWith('/console')) return '/console'
+    if (path.startsWith('/register')) return '/register'
+    if (path.startsWith('/history')) return '/history'
+    if (path.startsWith('/proxies')) return '/proxies'
+    if (path.startsWith('/settings')) return '/settings'
+    return '/'
+  })()
+
+  const activeNav = navItems.find((item) => item.key === activeNavKey) || navItems[0]
 
   return (
     <ConfigProvider theme={currentTheme} locale={zhCN}>
       <AntdApp>
-      <Layout style={{ minHeight: '100vh' }}>
-        <Sider
-          collapsible
-          collapsed={collapsed}
-          onCollapse={setCollapsed}
-          style={{
-            background: currentTheme.token?.colorBgContainer,
-            borderRight: `1px solid ${currentTheme.token?.colorBorder}`,
-          }}
-          width={220}
-        >
-          <div
-            style={{
-              height: 64,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderBottom: `1px solid ${currentTheme.token?.colorBorder}`,
-            }}
-          >
-            <DashboardOutlined style={{ fontSize: 20, color: currentTheme.token?.colorPrimary }} />
-            {!collapsed && (
-              <span
-                style={{
-                  marginLeft: 8,
-                  fontWeight: 600,
-                  fontSize: 14,
-                  color: currentTheme.token?.colorText,
-                }}
-              >
-                Account Manager
-              </span>
-            )}
+      <div className="app-shell">
+        <aside className="app-sider">
+          <div className="app-brand">
+            <div className="app-brand__badge">
+              <ThunderboltOutlined />
+            </div>
+            <div className="app-brand__text">
+              <span className="app-brand__title">Helix</span>
+              <span className="app-brand__subtitle">ChatGPT 账号后台</span>
+            </div>
           </div>
-          <Menu
-            mode="inline"
-            selectedKeys={getSelectedKey()}
-            defaultOpenKeys={['/accounts']}
-            items={menuItems}
-            onClick={({ key }) => navigate(key)}
-            style={{
-              borderRight: 0,
-              background: 'transparent',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 56,
-              left: 0,
-              right: 0,
-              padding: '0 16px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-            }}
-          >
-            <Button
-              block
-              icon={isLight ? <SunOutlined /> : <MoonOutlined />}
-              onClick={() => setThemeMode(isLight ? 'dark' : 'light')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: collapsed ? 'center' : 'space-between',
-              }}
-            >
-              {!collapsed && (isLight ? '亮色模式' : '暗色模式')}
-            </Button>
-            {hasPassword && (
-              <Button
-                block
-                danger
-                icon={<LogoutOutlined />}
-                onClick={() => { clearToken(); navigate('/login') }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: collapsed ? 'center' : 'space-between',
-                }}
-              >
-                {!collapsed && '退出登录'}
+          <div className="app-nav">
+            <div className="sidebar-nav">
+              {navItems.map((item) => {
+                const active = item.key === activeNavKey
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className={`sidebar-nav__item${active ? ' is-active' : ''}`}
+                    onClick={() => navigate(item.key)}
+                  >
+                    <span className="sidebar-nav__icon">{item.icon}</span>
+                    <span className="sidebar-nav__copy">
+                      <span className="sidebar-nav__label">{item.label}</span>
+                      <span className="sidebar-nav__hint">{item.description}</span>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </aside>
+        <main className="app-main">
+          <div className="app-topbar">
+            <div className="app-topbar__current">
+              <Text className="app-topbar__section">{activeNav.label}</Text>
+              <Text className="app-topbar__hint">{activeNav.description}</Text>
+            </div>
+            <Space wrap>
+              <Tag color="blue">ChatGPT</Tag>
+              <Button type="default" onClick={() => navigate('/console')}>
+                实时控制台
               </Button>
-            )}
+              <Button
+                icon={isLight ? <SunOutlined /> : <MoonOutlined />}
+                onClick={() => setThemeMode(isLight ? 'dark' : 'light')}
+              >
+                {isLight ? '亮色模式' : '暗色模式'}
+              </Button>
+              {hasPassword && (
+                <Button
+                  danger
+                  icon={<LogoutOutlined />}
+                  onClick={() => { clearToken(); navigate('/login') }}
+                >
+                  退出登录
+                </Button>
+              )}
+            </Space>
           </div>
-        </Sider>
-        <Content
-          style={{
-            padding: 24,
-            overflow: 'auto',
-            background: currentTheme.token?.colorBgLayout,
-          }}
-        >
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/accounts" element={<Accounts />} />
-            <Route path="/accounts/:platform" element={<Accounts />} />
-            <Route path="/register" element={<RegisterTaskPage />} />
-            <Route path="/history" element={<TaskHistory />} />
-            <Route path="/proxies" element={<Proxies />} />
-            <Route path="/settings" element={<Settings />} />
-          </Routes>
-        </Content>
-      </Layout>
+          <div className="content-stage">
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/console" element={<ConsolePage />} />
+              <Route path="/accounts" element={<Accounts />} />
+              <Route path="/accounts/:platform" element={<Accounts />} />
+              <Route path="/register" element={<RegisterTaskPage />} />
+              <Route path="/history" element={<TaskHistory />} />
+              <Route path="/proxies" element={<Proxies />} />
+              <Route path="/settings" element={<Settings />} />
+            </Routes>
+          </div>
+        </main>
+      </div>
       </AntdApp>
     </ConfigProvider>
   )

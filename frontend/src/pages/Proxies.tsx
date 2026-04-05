@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Card, Table, Button, Input, Tag, Space, Popconfirm, message, Typography } from 'antd'
+import { Table, Button, Input, Tag, Space, Popconfirm, message, Typography } from 'antd'
 import type { TableColumnsType } from 'antd'
 import {
   PlusOutlined,
@@ -10,6 +10,9 @@ import {
   SwapRightOutlined,
   SwapLeftOutlined,
 } from '@ant-design/icons'
+import { HeroChip, PageHero } from '@/components/PageHero'
+import { StatTile } from '@/components/StatTile'
+import { SurfacePanel } from '@/components/SurfacePanel'
 import { apiFetch } from '@/lib/utils'
 
 const { Text } = Typography
@@ -187,33 +190,48 @@ export default function Proxies() {
     },
   ]
 
+  const activeCount = proxies.filter((item) => item.is_active).length
+  const unhealthyCount = proxies.filter((item) => item.fail_count > item.success_count).length
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 'bold', margin: 0 }}>代理管理</h1>
-          <p style={{ color: '#7a8ba3', marginTop: 4 }}>共 {proxies.length} 个代理</p>
-        </div>
-        <Space>
-          {selectedRowKeys.length > 0 && <Text type="success">已选 {selectedRowKeys.length} 个</Text>}
-          {selectedRowKeys.length > 0 && (
-            <Popconfirm
-              title={`确认删除选中的 ${selectedRowKeys.length} 个代理？`}
-              onConfirm={batchDelete}
-            >
-              <Button danger icon={<DeleteOutlined />}>
-                删除 {selectedRowKeys.length} 个
-              </Button>
-            </Popconfirm>
-          )}
-          <Button icon={<ReloadOutlined spin={checking} />} onClick={check} loading={checking}>
-            检测全部
-          </Button>
-        </Space>
+    <div className="page-shell">
+      <PageHero
+        title="代理"
+        description="导入、检测和维护当前代理池。"
+        actions={(
+          <Space>
+            {selectedRowKeys.length > 0 && <Text type="success">已选 {selectedRowKeys.length} 个</Text>}
+            {selectedRowKeys.length > 0 && (
+              <Popconfirm
+                title={`确认删除选中的 ${selectedRowKeys.length} 个代理？`}
+                onConfirm={batchDelete}
+              >
+                <Button danger icon={<DeleteOutlined />}>
+                  删除 {selectedRowKeys.length} 个
+                </Button>
+              </Popconfirm>
+            )}
+            <Button icon={<ReloadOutlined spin={checking} />} onClick={check} loading={checking}>
+              检测全部
+            </Button>
+          </Space>
+        )}
+        meta={(
+          <>
+            <HeroChip>代理总数 {proxies.length}</HeroChip>
+            <HeroChip>已选 {selectedRowKeys.length}</HeroChip>
+          </>
+        )}
+      />
+
+      <div className="dashboard-metrics dashboard-metrics--three">
+        <StatTile label="代理总数" value={proxies.length} tone="default" />
+        <StatTile label="活跃代理" value={activeCount} tone="success" />
+        <StatTile label="异常偏多" value={unhealthyCount} tone="warning" />
       </div>
 
-      <Card title="添加代理（每行一个）">
-        <Space direction="vertical" style={{ width: '100%' }}>
+      <SurfacePanel title="导入代理" subtitle="直接粘贴多行代理，系统会自动规范化并入库。">
+        <div className="stack-16">
           <Input.TextArea
             value={newProxy}
             onChange={(e) => setNewProxy(e.target.value)}
@@ -229,7 +247,7 @@ export default function Proxies() {
           <Text type="secondary">
             可直接粘贴 HTTP 或 SOCKS5 标准 URL；导入后会统一规范为标准 URL 存储，SOCKS5 会自动转为 `socks5h://`。
           </Text>
-          <Space>
+          <Space wrap>
             <Input
               value={region}
               onChange={(e) => setRegion(e.target.value)}
@@ -240,10 +258,15 @@ export default function Proxies() {
               添加
             </Button>
           </Space>
-        </Space>
-      </Card>
+        </div>
+      </SurfacePanel>
 
-      <Card>
+      <SurfacePanel
+        title="代理列表"
+        subtitle="支持选择、批量删除和整池检测。"
+        actions={selectedRowKeys.length > 0 ? <Text type="success">已选 {selectedRowKeys.length} 个</Text> : null}
+        className="page-table-shell"
+      >
         <Table
           rowKey="id"
           columns={columns}
@@ -255,7 +278,7 @@ export default function Proxies() {
           }}
           pagination={false}
         />
-      </Card>
+      </SurfacePanel>
     </div>
   )
 }

@@ -28,12 +28,18 @@ import {
   MoreOutlined,
   DeleteOutlined,
   SyncOutlined,
+  SafetyOutlined,
+  UserOutlined,
 } from '@ant-design/icons'
 import { ChatGPTRegistrationModeSwitch } from '@/components/ChatGPTRegistrationModeSwitch'
+import { HeroChip, PageHero } from '@/components/PageHero'
+import { StatTile } from '@/components/StatTile'
+import { SurfacePanel } from '@/components/SurfacePanel'
 import { TaskLogPanel } from '@/components/TaskLogPanel'
 import { usePersistentChatGPTRegistrationMode } from '@/hooks/usePersistentChatGPTRegistrationMode'
 import { parseBooleanConfigValue } from '@/lib/configValueParsers'
 import { buildChatGPTRegistrationRequestAdapter } from '@/lib/chatgptRegistrationRequestAdapter'
+import { setTrackedTask } from '@/lib/taskTracker'
 import { apiFetch } from '@/lib/utils'
 import { normalizeExecutorForPlatform } from '@/lib/platformExecutorOptions'
 
@@ -45,6 +51,10 @@ const STATUS_COLORS: Record<string, string> = {
   subscribed: 'success',
   expired: 'warning',
   invalid: 'error',
+}
+
+const PLATFORM_TITLES: Record<string, string> = {
+  chatgpt: 'ChatGPT',
 }
 
 function parseExtraJson(raw: string | undefined) {
@@ -483,7 +493,7 @@ function ActionMenu({ acc, onRefresh, actions }: { acc: any; onRefresh: () => vo
 export default function Accounts() {
   const { platform } = useParams<{ platform: string }>()
   const { token } = theme.useToken()
-  const [currentPlatform, setCurrentPlatform] = useState(platform || 'trae')
+  const [currentPlatform, setCurrentPlatform] = useState(platform === 'chatgpt' ? 'chatgpt' : 'chatgpt')
   const [accounts, setAccounts] = useState<any[]>([])
   const [platformActions, setPlatformActions] = useState<any[]>([])
   const [total, setTotal] = useState(0)
@@ -511,7 +521,7 @@ export default function Accounts() {
   const [statusSyncLoading, setStatusSyncLoading] = useState<'probe_selected' | 'probe_all' | 'remote_selected' | 'remote_all' | ''>('')
 
   useEffect(() => {
-    if (platform) setCurrentPlatform(platform)
+    setCurrentPlatform(platform === 'chatgpt' ? 'chatgpt' : 'chatgpt')
   }, [platform])
 
   useEffect(() => {
@@ -704,6 +714,15 @@ export default function Accounts() {
           proxy: null,
           extra: adaptedRegisterExtra,
         }),
+      })
+      setTrackedTask({
+        taskId: res.task_id,
+        platform: currentPlatform,
+        title: '账户页注册任务',
+        source: 'accounts-modal',
+        count: values.count,
+        concurrency: values.concurrency,
+        createdAt: new Date().toISOString(),
       })
       setTaskId(res.task_id)
     } finally {
@@ -1129,108 +1148,149 @@ export default function Accounts() {
     },
   ]
 
-  return (
-    <div>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-        <Space>
-          <Input.Search
-            placeholder="搜索邮箱..."
-            allowClear
-            onSearch={setSearch}
-            style={{ width: 200 }}
-          />
-          <Select
-            placeholder="状态筛选"
-            allowClear
-            style={{ width: 120 }}
-            onChange={setFilterStatus}
-            options={[
-              { value: 'registered', label: '已注册' },
-              { value: 'trial', label: '试用中' },
-              { value: 'subscribed', label: '已订阅' },
-              { value: 'expired', label: '已过期' },
-              { value: 'invalid', label: '已失效' },
-            ]}
-          />
-          <Text type="secondary">{total} 个账号</Text>
-          {selectedRowKeys.length > 0 && (
-            <Text type="success">已选 {selectedRowKeys.length} 个</Text>
-          )}
-        </Space>
-        <Space>
-          {currentPlatform === 'chatgpt' && (
-            <Dropdown
-              trigger={['click']}
-              menu={{
-                items: statusSyncMenuItems,
-                onClick: ({ key }) => {
-                  const [kind, scope] = String(key).split(':') as ['probe' | 'remote', 'selected' | 'all']
-                  handleBatchStatusSync(kind, scope)
-                },
-              }}
-            >
-              <Button
-                icon={<SyncOutlined />}
-                loading={statusSyncLoading !== ''}
-                disabled={total === 0}
-              >
-                状态同步
-              </Button>
-            </Dropdown>
-          )}
-          {currentPlatform === 'chatgpt' && (
-            <Popconfirm
-              title={
-                getBackfillScope() === 'selected'
-                  ? `确认补传所选 ${selectedRowKeys.length} 个账号中远端未发现的 auth-file？`
-                  : '确认补传当前筛选范围内远端未发现且本地状态有效的账号？'
-              }
-              onConfirm={() => handleCpaBackfill(getBackfillScope())}
-            >
-              <Button
-                loading={cpaSyncLoading === 'pending' || cpaSyncLoading === 'selected'}
-                icon={<UploadOutlined />}
-                disabled={getBackfillScope() === 'selected' ? selectedRowKeys.length === 0 : total === 0}
-              >
-                {backfillButtonLabel()}
-              </Button>
-            </Popconfirm>
-          )}
-          {selectedRowKeys.length > 0 && (
-            <Popconfirm title={`确认删除选中的 ${selectedRowKeys.length} 个账号？`} onConfirm={handleBatchDelete}>
-              <Button danger icon={<DeleteOutlined />}>删除 {selectedRowKeys.length} 个</Button>
-            </Popconfirm>
-          )}
-          <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>导入</Button>
-          <Button icon={<DownloadOutlined />} onClick={exportCsv} disabled={accounts.length === 0}>导出</Button>
-          <Button icon={<PlusOutlined />} onClick={() => setAddModalOpen(true)}>新增</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setRegisterModalOpen(true)}>注册</Button>
-          <Button icon={<ReloadOutlined spin={loading} />} onClick={load} />
-        </Space>
-      </div>
+  const activeCount = accounts.filter((account) => ['registered', 'trial', 'subscribed'].includes(account.status)).length
+  const invalidCount = accounts.filter((account) => ['invalid', 'expired'].includes(account.status)).length
+  const remoteIssueCount = accounts.filter((account) =>
+    ['account_deactivated', 'access_token_invalidated', 'unauthorized'].includes(account.cliproxySync?.remote_state),
+  ).length
 
-      <Table
-        rowKey="id"
-        columns={columns}
-        dataSource={accounts}
-        loading={loading}
-        size="middle"
-        rowSelection={{
-          selectedRowKeys,
-          onChange: setSelectedRowKeys,
-        }}
-        pagination={{ pageSize: 20, showSizeChanger: false }}
-        scroll={{ x: isChatgptPlatform ? 1440 : 980 }}
-        onRow={(record) => ({
-          onDoubleClick: () => {
-            setCurrentAccount(record)
-            setDetailModalOpen(true)
-          },
-        })}
+  return (
+    <div className="page-shell">
+      <PageHero
+        title={`${PLATFORM_TITLES[currentPlatform] || 'ChatGPT'} 账号`}
+        description="围绕 ChatGPT 账号的导入、批量操作、状态同步和注册集中在这一页。"
+        meta={(
+          <>
+            <HeroChip>账号总数 {total}</HeroChip>
+            <HeroChip>已选 {selectedRowKeys.length}</HeroChip>
+          </>
+        )}
+        actions={(
+          <Button icon={<ReloadOutlined spin={loading} />} onClick={load} loading={loading}>
+            刷新
+          </Button>
+        )}
       />
 
+      <div className="dashboard-metrics">
+        <StatTile label="账号总数" value={total} icon={<UserOutlined />} />
+        <StatTile label="可用状态" value={activeCount} icon={<SafetyOutlined />} tone="success" />
+        <StatTile label="失效状态" value={invalidCount} icon={<DeleteOutlined />} tone="danger" />
+        <StatTile label="远端异常" value={remoteIssueCount} icon={<SyncOutlined />} tone="warning" />
+      </div>
+
+      <SurfacePanel
+        title="筛选与批量操作"
+        subtitle="把搜索、同步、回填和导入导出放在同一层，不再散在多个入口。"
+        actions={(
+          <Space wrap>
+            {selectedRowKeys.length > 0 ? <Text type="success">已选 {selectedRowKeys.length} 个</Text> : null}
+            <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>导入</Button>
+            <Button icon={<DownloadOutlined />} onClick={exportCsv} disabled={accounts.length === 0}>导出</Button>
+            <Button icon={<PlusOutlined />} onClick={() => setAddModalOpen(true)}>新增</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setRegisterModalOpen(true)}>注册</Button>
+          </Space>
+        )}
+      >
+        <div className="data-toolbar">
+          <div className="data-toolbar__group">
+            <Input.Search
+              placeholder="搜索邮箱..."
+              allowClear
+              onSearch={setSearch}
+              style={{ width: 240 }}
+            />
+            <Select
+              placeholder="状态筛选"
+              allowClear
+              style={{ width: 150 }}
+              onChange={setFilterStatus}
+              options={[
+                { value: 'registered', label: '已注册' },
+                { value: 'trial', label: '试用中' },
+                { value: 'subscribed', label: '已订阅' },
+                { value: 'expired', label: '已过期' },
+                { value: 'invalid', label: '已失效' },
+              ]}
+            />
+            <Text type="secondary">{total} 个账号</Text>
+          </div>
+          <div className="data-toolbar__group">
+            {currentPlatform === 'chatgpt' && (
+              <Dropdown
+                trigger={['click']}
+                menu={{
+                  items: statusSyncMenuItems,
+                  onClick: ({ key }) => {
+                    const [kind, scope] = String(key).split(':') as ['probe' | 'remote', 'selected' | 'all']
+                    handleBatchStatusSync(kind, scope)
+                  },
+                }}
+              >
+                <Button
+                  icon={<SyncOutlined />}
+                  loading={statusSyncLoading !== ''}
+                  disabled={total === 0}
+                >
+                  状态同步
+                </Button>
+              </Dropdown>
+            )}
+            {currentPlatform === 'chatgpt' && (
+              <Popconfirm
+                title={
+                  getBackfillScope() === 'selected'
+                    ? `确认补传所选 ${selectedRowKeys.length} 个账号中远端未发现的 auth-file？`
+                    : '确认补传当前筛选范围内远端未发现且本地状态有效的账号？'
+                }
+                onConfirm={() => handleCpaBackfill(getBackfillScope())}
+              >
+                <Button
+                  loading={cpaSyncLoading === 'pending' || cpaSyncLoading === 'selected'}
+                  icon={<UploadOutlined />}
+                  disabled={getBackfillScope() === 'selected' ? selectedRowKeys.length === 0 : total === 0}
+                >
+                  {backfillButtonLabel()}
+                </Button>
+              </Popconfirm>
+            )}
+            {selectedRowKeys.length > 0 && (
+              <Popconfirm title={`确认删除选中的 ${selectedRowKeys.length} 个账号？`} onConfirm={handleBatchDelete}>
+                <Button danger icon={<DeleteOutlined />}>删除 {selectedRowKeys.length} 个</Button>
+              </Popconfirm>
+            )}
+          </div>
+        </div>
+      </SurfacePanel>
+
+      <SurfacePanel
+        title="账号列表"
+        subtitle="双击任意一行可直接打开详情。"
+        className="page-table-shell"
+      >
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={accounts}
+          loading={loading}
+          size="middle"
+          rowSelection={{
+            selectedRowKeys,
+            onChange: setSelectedRowKeys,
+          }}
+          pagination={{ pageSize: 20, showSizeChanger: false }}
+          scroll={{ x: isChatgptPlatform ? 1440 : 980 }}
+          onRow={(record) => ({
+            onDoubleClick: () => {
+              setCurrentAccount(record)
+              setDetailModalOpen(true)
+            },
+          })}
+        />
+      </SurfacePanel>
+
       <Modal
-        title={`注册 ${currentPlatform}`}
+        title={`新建 ${PLATFORM_TITLES[currentPlatform] || currentPlatform} 注册任务`}
         open={registerModalOpen}
         onCancel={() => { setRegisterModalOpen(false); setTaskId(null); registerForm.resetFields(); }}
         footer={null}
@@ -1263,7 +1323,15 @@ export default function Accounts() {
             </Form.Item>
           </Form>
         ) : (
-          <TaskLogPanel taskId={taskId} onDone={() => { load(); }} />
+          <>
+            <Alert
+              type="info"
+              showIcon
+              message="任务日志已同步到首页实时任务追踪，可关闭弹窗继续进行其他操作。"
+              style={{ marginBottom: 12 }}
+            />
+            <TaskLogPanel taskId={taskId} onDone={() => { load(); }} />
+          </>
         )}
       </Modal>
 

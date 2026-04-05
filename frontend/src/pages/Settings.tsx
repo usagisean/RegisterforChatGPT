@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { App, Card, Form, Input, Select, Button, message, Tabs, Space, Tag, Typography, Modal, QRCode, Switch, Alert } from 'antd'
+import { App, Card, Form, Input, Select, Button, message, Space, Tag, Typography, Modal, QRCode, Switch, Alert } from 'antd'
 import {
   SaveOutlined,
   EyeOutlined,
@@ -13,6 +13,8 @@ import {
   PlusOutlined,
   LockOutlined,
 } from '@ant-design/icons'
+import { HeroChip, PageHero } from '@/components/PageHero'
+import { SurfacePanel } from '@/components/SurfacePanel'
 import { parseBooleanConfigValue } from '@/lib/configValueParsers'
 import { apiFetch } from '@/lib/utils'
 
@@ -359,11 +361,13 @@ const TAB_ITEMS = [
   },
 ]
 
+const VISIBLE_TAB_KEYS = new Set(['register', 'mailbox', 'captcha', 'chatgpt', 'cliproxyapi', 'integrations', 'security'])
+
 interface FieldConfig {
   key: string
   label: string
   placeholder?: string
-  type?: 'select' | 'input' | 'boolean'
+  type?: string
   secret?: boolean
 }
 
@@ -476,11 +480,15 @@ function ConfigField({ field }: { field: FieldConfig }) {
 
 function ConfigSection({ section }: { section: SectionConfig }) {
   return (
-    <Card title={section.title} extra={section.desc && <span style={{ fontSize: 12, color: '#7a8ba3' }}>{section.desc}</span>} style={{ marginBottom: 16 }}>
+    <SurfacePanel
+      title={section.title}
+      subtitle={section.desc}
+      className="settings-section"
+    >
       {section.fields.map((field) => (
         <ConfigField key={field.key} field={field} />
       ))}
-    </Card>
+    </SurfacePanel>
   )
 }
 
@@ -503,10 +511,10 @@ function CFWorkerDomainPoolSection({ form }: { form: any }) {
   }
 
   return (
-    <Card
+    <SurfacePanel
       title="CF Worker 域名池"
-      extra={<span style={{ fontSize: 12, color: '#7a8ba3' }}>注册时会从已启用域名中随机选择一个</span>}
-      style={{ marginBottom: 16 }}
+      subtitle="注册时会从已启用域名中随机选择一个。"
+      className="settings-section"
     >
       <Form.List name="cfworker_domains">
         {(fields, { add, remove }) => (
@@ -607,7 +615,7 @@ function CFWorkerDomainPoolSection({ form }: { form: any }) {
       <Typography.Text type="secondary" style={{ display: 'block', marginTop: 12 }}>
         仅已启用域名会参与注册；点击已启用标签可直接移除。
       </Typography.Text>
-    </Card>
+    </SurfacePanel>
   )
 }
 
@@ -686,10 +694,10 @@ function AppleMailPoolImportSection({ form }: { form: any }) {
   }
 
   return (
-    <Card
+    <SurfacePanel
       title="AppleMail 内容导入"
-      extra={<span style={{ fontSize: 12, color: '#7a8ba3' }}>支持 JSON 或 TXT；导入后自动绑定当前邮箱池文件</span>}
-      style={{ marginBottom: 16 }}
+      subtitle="支持 JSON 或 TXT；导入后自动绑定当前邮箱池文件。"
+      className="settings-section"
     >
       <Space direction="vertical" style={{ width: '100%' }} size={12}>
         <Typography.Text type="secondary">
@@ -760,7 +768,7 @@ function AppleMailPoolImportSection({ form }: { form: any }) {
           <Typography.Text type="secondary">预览只展示前 100 个邮箱，完整内容以文件为准。</Typography.Text>
         ) : null}
       </Space>
-    </Card>
+    </SurfacePanel>
   )
 }
 
@@ -789,7 +797,7 @@ function SolverStatus() {
   }, [])
 
   return (
-    <Card title="Turnstile Solver" size="small" style={{ marginBottom: 16 }}>
+    <SurfacePanel title="Turnstile Solver" subtitle="查看当前状态并重启本地求解器。" className="settings-section">
       <div
         style={{
           display: 'flex',
@@ -815,7 +823,7 @@ function SolverStatus() {
           重启 Solver
         </Button>
       </div>
-    </Card>
+    </SurfacePanel>
   )
 }
 
@@ -1032,10 +1040,10 @@ function OutlookImportSection() {
   }
 
   return (
-    <Card
+    <SurfacePanel
       title="Outlook 批量导入"
-      extra={<span style={{ fontSize: 12, color: '#7a8ba3' }}>每行格式：邮箱----密码 或 邮箱----密码----client_id----refresh_token</span>}
-      style={{ marginBottom: 16 }}
+      subtitle="每行格式：邮箱----密码 或 邮箱----密码----client_id----refresh_token。"
+      className="settings-section"
     >
       <Input.TextArea
         value={value}
@@ -1067,7 +1075,7 @@ function OutlookImportSection() {
           )}
         </div>
       ) : null}
-    </Card>
+    </SurfacePanel>
   )
 }
 
@@ -1354,6 +1362,12 @@ export default function Settings() {
     })
   }, [form])
 
+  useEffect(() => {
+    if (!VISIBLE_TAB_KEYS.has(activeTab)) {
+      setActiveTab('register')
+    }
+  }, [activeTab])
+
   const save = async () => {
     setSaving(true)
     try {
@@ -1389,34 +1403,71 @@ export default function Settings() {
     }
   }
 
-  const currentTab = TAB_ITEMS.find((t) => t.key === activeTab) as TabConfig
+  const visibleTabs: TabConfig[] = TAB_ITEMS.filter((t) => VISIBLE_TAB_KEYS.has(t.key))
+  const currentTab: TabConfig = visibleTabs.find((t) => t.key === activeTab) || visibleTabs[0]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
-        <h1 style={{ fontSize: 24, fontWeight: 'bold', margin: 0 }}>全局配置</h1>
-        <p style={{ color: '#7a8ba3', marginTop: 4 }}>配置将持久化保存，注册任务自动使用</p>
-      </div>
+    <div className="page-shell">
+      <PageHero
+        title="设置"
+        description="管理邮箱、验证码、上传和安全选项。"
+        meta={(
+          <>
+            <HeroChip>配置持久化保存</HeroChip>
+            <HeroChip>仅显示 ChatGPT 相关入口</HeroChip>
+          </>
+        )}
+      />
 
-      <div style={{ display: 'flex', gap: 24 }}>
-        <div style={{ width: 200 }}>
-          <Tabs
-            tabPosition="left"
-            activeKey={activeTab}
-            onChange={setActiveTab}
-            items={TAB_ITEMS.map((t) => ({
-              key: t.key,
-              label: (
-                <span>
-                  {t.icon}
-                  <span style={{ marginLeft: 8 }}>{t.label}</span>
+      <div className="settings-layout">
+        <div className="settings-nav-panel">
+          <div className="settings-nav-list">
+            {visibleTabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                className={`settings-nav-item${tab.key === activeTab ? ' is-active' : ''}`}
+                onClick={() => setActiveTab(tab.key)}
+              >
+                <span className="settings-nav-item__icon">{tab.icon}</span>
+                <span className="settings-nav-item__copy">
+                  <span className="settings-nav-item__label">{tab.label}</span>
+                  <span className="settings-nav-item__meta">
+                    {tab.key === 'register'
+                      ? '默认执行策略'
+                      : tab.key === 'mailbox'
+                      ? '邮箱与邮箱池'
+                      : tab.key === 'captcha'
+                      ? 'Solver 与验证'
+                      : tab.key === 'chatgpt'
+                      ? '上传与维护'
+                      : tab.key === 'cliproxyapi'
+                      ? '远端同步'
+                      : tab.key === 'integrations'
+                      ? '外部服务'
+                      : '访问保护'}
+                  </span>
                 </span>
-              ),
-            }))}
-          />
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div style={{ flex: 1 }}>
+        <div className="settings-content-panel">
+          <div className="settings-content-header">
+            <div>
+              <div className="settings-content-header__title">{currentTab.label}</div>
+              <div className="settings-content-header__description">
+                {currentTab.sections[0]?.desc || '调整当前模块的配置项。'}
+              </div>
+            </div>
+            {activeTab !== 'integrations' && activeTab !== 'security' ? (
+              <Button type="primary" icon={<SaveOutlined />} onClick={save} loading={saving}>
+                {saved ? '已保存' : '保存'}
+              </Button>
+            ) : null}
+          </div>
+
           {activeTab === 'integrations' ? (
             <IntegrationsPanel />
           ) : activeTab === 'security' ? (
@@ -1430,9 +1481,6 @@ export default function Settings() {
               {activeTab === 'mailbox' ? <AppleMailPoolImportSection form={form} /> : null}
               {activeTab === 'mailbox' ? <CFWorkerDomainPoolSection form={form} /> : null}
               {activeTab === 'mailbox' ? <OutlookImportSection /> : null}
-              <Button type="primary" icon={<SaveOutlined />} onClick={save} loading={saving} block>
-                {saved ? '已保存 ✓' : '保存配置'}
-              </Button>
             </Form>
           )}
         </div>

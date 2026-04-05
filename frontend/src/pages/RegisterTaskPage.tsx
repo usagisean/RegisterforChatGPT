@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import {
-  Card,
   Form,
   Input,
   InputNumber,
@@ -19,11 +18,14 @@ import {
   LoadingOutlined,
 } from '@ant-design/icons'
 import { ChatGPTRegistrationModeSwitch } from '@/components/ChatGPTRegistrationModeSwitch'
+import { HeroChip, PageHero } from '@/components/PageHero'
+import { SurfacePanel } from '@/components/SurfacePanel'
 import { TaskLogPanel } from '@/components/TaskLogPanel'
 import { usePersistentChatGPTRegistrationMode } from '@/hooks/usePersistentChatGPTRegistrationMode'
 import { parseBooleanConfigValue } from '@/lib/configValueParsers'
 import { buildChatGPTRegistrationRequestAdapter } from '@/lib/chatgptRegistrationRequestAdapter'
 import { getExecutorOptions, normalizeExecutorForPlatform } from '@/lib/platformExecutorOptions'
+import { setTrackedTask } from '@/lib/taskTracker'
 import { apiFetch } from '@/lib/utils'
 
 const { Text } = Typography
@@ -37,7 +39,7 @@ export default function RegisterTaskPage() {
 
   useEffect(() => {
     apiFetch('/config').then((cfg) => {
-      const currentPlatform = form.getFieldValue('platform') || 'trae'
+      const currentPlatform = form.getFieldValue('platform') || 'chatgpt'
       form.setFieldsValue({
         executor_type: normalizeExecutorForPlatform(currentPlatform, cfg.default_executor),
         captcha_solver: cfg.default_captcha_solver || 'yescaptcha',
@@ -184,6 +186,15 @@ export default function RegisterTaskPage() {
         extra: adaptedRegisterExtra,
       }),
     })
+    setTrackedTask({
+      taskId: res.task_id,
+      platform: values.platform,
+      title: '注册任务',
+      source: 'register-page',
+      count: values.count,
+      concurrency: values.concurrency,
+      createdAt: new Date().toISOString(),
+    })
     setTask(res)
     setPolling(true)
     pollTask(res.task_id)
@@ -217,41 +228,43 @@ export default function RegisterTaskPage() {
   }, [form, platform])
 
   return (
-    <div style={{ maxWidth: 800 }}>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 'bold', margin: 0 }}>注册任务</h1>
-        <p style={{ color: '#7a8ba3', marginTop: 4 }}>创建账号自动注册任务</p>
-      </div>
+    <div className="page-shell">
+      <PageHero
+        title="新建任务"
+        description="在一个页面里配置代理、邮箱、验证码和执行方式。任务启动后，日志会持续同步到首页。"
+        meta={(
+          <>
+            <HeroChip>ChatGPT</HeroChip>
+            <HeroChip>推荐并发 1</HeroChip>
+            <HeroChip>代理先单测</HeroChip>
+          </>
+        )}
+      />
 
-      <Form form={form} layout="vertical" onFinish={submit} initialValues={{
-        platform: 'trae',
-        executor_type: 'protocol',
-        captcha_solver: 'yescaptcha',
-        mail_provider: 'luckmail',
-        applemail_base_url: 'https://www.appleemail.top',
-        applemail_pool_dir: 'mail',
-        applemail_mailboxes: 'INBOX,Junk',
-        gptmail_base_url: 'https://mail.chatgpt.org.uk',
-        cloudmail_timeout: 30,
-        count: 1,
-        concurrency: 1,
-        register_delay_seconds: 0,
-        maliapi_base_url: 'https://maliapi.215.im/v1',
-        maliapi_auto_domain_strategy: 'balanced',
-        solver_url: 'http://localhost:8889',
-      }}>
-        <Card title="基本配置" style={{ marginBottom: 16 }}>
+      <div className="register-shell">
+        <div className="register-shell__main">
+          <Form form={form} layout="vertical" onFinish={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }} initialValues={{
+            platform: 'chatgpt',
+            executor_type: 'protocol',
+            captcha_solver: 'yescaptcha',
+            mail_provider: 'luckmail',
+            applemail_base_url: 'https://www.appleemail.top',
+            applemail_pool_dir: 'mail',
+            applemail_mailboxes: 'INBOX,Junk',
+            gptmail_base_url: 'https://mail.chatgpt.org.uk',
+            cloudmail_timeout: 30,
+            count: 1,
+            concurrency: 1,
+            register_delay_seconds: 0,
+            maliapi_base_url: 'https://maliapi.215.im/v1',
+            maliapi_auto_domain_strategy: 'balanced',
+            solver_url: 'http://localhost:8889',
+          }}>
+        <SurfacePanel title="任务参数" subtitle="先把执行方式、并发、代理和 token 策略定好。">
           <Form.Item name="platform" label="平台" rules={[{ required: true }]}>
             <Select
-              options={[
-                { value: 'chatgpt', label: 'ChatGPT' },
-                { value: 'trae', label: 'Trae.ai' },
-                { value: 'cursor', label: 'Cursor' },
-                { value: 'kiro', label: 'Kiro' },
-                { value: 'grok', label: 'Grok' },
-                { value: 'tavily', label: 'Tavily' },
-                { value: 'openblocklabs', label: 'OpenBlockLabs' },
-              ]}
+              disabled
+              options={[{ value: 'chatgpt', label: 'ChatGPT' }]}
             />
           </Form.Item>
           <Form.Item name="executor_type" label="执行器" rules={[{ required: true }]}>
@@ -290,9 +303,9 @@ export default function RegisterTaskPage() {
               />
             </Form.Item>
           )}
-        </Card>
+        </SurfacePanel>
 
-        <Card title="邮箱配置" style={{ marginBottom: 16 }}>
+        <SurfacePanel title="邮箱服务" subtitle="只展示当前任务需要的邮箱字段，避免一次看到太多无关选项。">
           <Form.Item name="mail_provider" label="邮箱服务" rules={[{ required: true }]}>
             <Select
               options={[
@@ -512,10 +525,10 @@ export default function RegisterTaskPage() {
               </Form.Item>
             </>
           )}
-        </Card>
+        </SurfacePanel>
 
         {platform === 'chatgpt' && (
-          <Card title="ChatGPT 手机验证" style={{ marginBottom: 16 }}>
+          <SurfacePanel title="短信验证" subtitle="只有命中 add_phone 时才会使用。">
             <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
               仅在 OAuth 流程进入 `add_phone` 时使用，用于自动取号并轮询短信验证码。
             </Text>
@@ -537,79 +550,92 @@ export default function RegisterTaskPage() {
             <Form.Item name="smstome_sync_max_pages_per_country" label="每国同步页数">
               <Input placeholder="5" />
             </Form.Item>
-          </Card>
+          </SurfacePanel>
         )}
 
         {captchaSolver === 'yescaptcha' && (
-          <Card title="验证码配置" style={{ marginBottom: 16 }}>
+          <SurfacePanel title="验证码服务" subtitle="当前使用 YesCaptcha 进行人机验证。">
             <Form.Item name="yescaptcha_key" label="YesCaptcha Key">
               <Input />
             </Form.Item>
-          </Card>
+          </SurfacePanel>
         )}
 
         {captchaSolver === 'local_solver' && (
-          <Card title="本地 Solver 配置" style={{ marginBottom: 16 }}>
+          <SurfacePanel title="本地 Solver" subtitle="本地起求解器时使用。">
             <Form.Item name="solver_url" label="Solver URL">
               <Input />
             </Form.Item>
             <Text type="secondary" style={{ fontSize: 12 }}>
               启动命令: python services/turnstile_solver/start.py --browser_type camoufox --port 8889
             </Text>
-          </Card>
+          </SurfacePanel>
         )}
 
         <Button type="primary" htmlType="submit" block disabled={polling} icon={polling ? <LoadingOutlined /> : <PlayCircleOutlined />}>
           {polling ? '注册中...' : '开始注册'}
         </Button>
-      </Form>
+          </Form>
+        </div>
 
-      {task && (
-        <Card title={
-          <Space>
-            <span>任务状态</span>
-            <Tag color={
-              task.status === 'done' ? 'success' :
-              task.status === 'stopped' ? 'warning' :
-              task.status === 'failed' ? 'error' : 'processing'
-            }>
-              {task.status}
-            </Tag>
-          </Space>
-        } style={{ marginTop: 16 }}>
-          <Descriptions column={1} size="small">
-            <Descriptions.Item label="任务 ID">
-              <Text copyable style={{ fontFamily: 'monospace' }}>{task.id}</Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="进度">{task.progress}</Descriptions.Item>
-            <Descriptions.Item label="跳过">{task.skipped ?? 0}</Descriptions.Item>
-          </Descriptions>
-          {task.success != null && (
-            <div style={{ marginTop: 8, color: '#10b981' }}>
-              <CheckCircleOutlined /> 成功 {task.success} 个
+        <div className="register-shell__side">
+          <SurfacePanel title="运行建议" subtitle="保持节奏慢一点，成功率通常更高。">
+            <div className="side-note">
+              <div className="side-note__title">建议</div>
+              <div className="side-note__text">本地先用并发 1。代理先测单号再放量。</div>
+              <div className="side-note__title">日志</div>
+              <div className="side-note__text">任务开始后，首页会持续显示实时日志。你可以离开当前页面继续做其他操作。</div>
             </div>
-          )}
-          {task.errors?.length > 0 && (
-            <div style={{ marginTop: 8 }}>
-              {task.errors.map((e: string, i: number) => (
-                <div key={i} style={{ color: '#ef4444', marginBottom: 4 }}>
-                  <CloseCircleOutlined /> {e}
+          </SurfacePanel>
+
+          {task ? (
+            <SurfacePanel title={(
+              <Space>
+                <span>当前任务</span>
+                <Tag color={
+                  task.status === 'done' ? 'success' :
+                  task.status === 'stopped' ? 'warning' :
+                  task.status === 'failed' ? 'error' : 'processing'
+                }>
+                  {task.status}
+                </Tag>
+              </Space>
+            )}>
+              <Descriptions column={1} size="small">
+                <Descriptions.Item label="任务 ID">
+                  <Text copyable style={{ fontFamily: 'monospace' }}>{task.id}</Text>
+                </Descriptions.Item>
+                <Descriptions.Item label="进度">{task.progress}</Descriptions.Item>
+                <Descriptions.Item label="跳过">{task.skipped ?? 0}</Descriptions.Item>
+              </Descriptions>
+              {task.success != null && (
+                <div style={{ marginTop: 8, color: '#10b981' }}>
+                  <CheckCircleOutlined /> 成功 {task.success} 个
                 </div>
-              ))}
-            </div>
-          )}
-          {task.error && (
-            <div style={{ marginTop: 8, color: '#ef4444' }}>
-              <CloseCircleOutlined /> {task.error}
-            </div>
-          )}
-          {task.id ? (
-            <div style={{ marginTop: 16 }}>
-              <TaskLogPanel taskId={task.id} />
-            </div>
+              )}
+              {task.errors?.length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  {task.errors.map((e: string, i: number) => (
+                    <div key={i} style={{ color: '#ef4444', marginBottom: 4 }}>
+                      <CloseCircleOutlined /> {e}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {task.error && (
+                <div style={{ marginTop: 8, color: '#ef4444' }}>
+                  <CloseCircleOutlined /> {task.error}
+                </div>
+              )}
+              {task.id ? (
+                <div style={{ marginTop: 16 }}>
+                  <TaskLogPanel taskId={task.id} />
+                </div>
+              ) : null}
+            </SurfacePanel>
           ) : null}
-        </Card>
-      )}
+        </div>
+      </div>
     </div>
   )
 }
