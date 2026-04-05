@@ -32,8 +32,11 @@ LOG_FILE="${APP_DIR}/deploy.log"
 HEARTBEAT_PID=$!
 trap 'kill "${HEARTBEAT_PID}" >/dev/null 2>&1 || true' EXIT
 
+set +e
 "${COMPOSE[@]}" -f docker-compose.yml -f docker-compose.deploy.yml up -d --build --remove-orphans \
   >"${LOG_FILE}" 2>&1
+DEPLOY_STATUS=$?
+set -e
 
 kill "${HEARTBEAT_PID}" >/dev/null 2>&1 || true
 trap - EXIT
@@ -41,3 +44,5 @@ trap - EXIT
 tail -n 120 "${LOG_FILE}" || true
 "${COMPOSE[@]}" -f docker-compose.yml -f docker-compose.deploy.yml ps
 "${COMPOSE[@]}" -f docker-compose.yml -f docker-compose.deploy.yml logs --no-color --tail=60 app || true
+
+exit "${DEPLOY_STATUS}"
