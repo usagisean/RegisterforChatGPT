@@ -330,7 +330,7 @@ const TAB_ITEMS = [
     icon: <ApiOutlined />,
     sections: [
       {
-        title: 'Kiro Account Manager',
+        title: 'zxai 控制台',
         desc: '注册成功后自动写入 kiro-account-manager 的 accounts.json',
         fields: [
           {
@@ -1083,7 +1083,7 @@ type TotpSetupState = 'idle' | 'setup'
 
 function SecurityPanel() {
   const { message: msg } = App.useApp()
-  const [status, setStatus] = useState<{ has_password: boolean; has_totp: boolean } | null>(null)
+  const [status, setStatus] = useState<{ has_password: boolean; has_totp: boolean; managed_by_env?: boolean } | null>(null)
   const [loading, setLoading] = useState(false)
 
   const [enableForm] = Form.useForm()
@@ -1115,7 +1115,7 @@ function SecurityPanel() {
         body: JSON.stringify({ password: values.password }),
       })
       localStorage.setItem('auth_token', d.access_token)
-      msg.success('密码保护已启用')
+      msg.success('管理员密钥保护已启用')
       enableForm.resetFields()
       await loadStatus()
     } catch (e: any) {
@@ -1130,7 +1130,7 @@ function SecurityPanel() {
     try {
       await apiFetch('/auth/disable', { method: 'POST' })
       localStorage.removeItem('auth_token')
-      msg.success('密码保护已关闭')
+      msg.success('管理员密钥保护已关闭')
       await loadStatus()
     } catch (e: any) {
       msg.error(e.message)
@@ -1141,7 +1141,7 @@ function SecurityPanel() {
 
   const handleChangePassword = async (values: { current_password: string; new_password: string; confirm: string }) => {
     if (values.new_password !== values.confirm) {
-      msg.error('两次输入的新密码不一致')
+      msg.error('两次输入的新管理员密钥不一致')
       return
     }
     setLoading(true)
@@ -1150,7 +1150,7 @@ function SecurityPanel() {
         method: 'POST',
         body: JSON.stringify({ current_password: values.current_password, new_password: values.new_password }),
       })
-      msg.success('密码已更新')
+      msg.success('管理员密钥已更新')
       pwForm.resetFields()
     } catch (e: any) {
       msg.error(e.message)
@@ -1207,58 +1207,67 @@ function SecurityPanel() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Card
-        title="访问密码保护"
+        title="管理员密钥"
         extra={
           status?.has_password
             ? <Tag color="green"><CheckCircleOutlined /> 已启用</Tag>
             : <Tag color="default"><CloseCircleOutlined /> 未启用</Tag>
         }
       >
-        {!status?.has_password ? (
+        {status?.managed_by_env ? (
           <Space direction="vertical" style={{ width: '100%' }}>
             <Typography.Text type="secondary">
-              启用后，访问页面需要输入密码。默认不开启，任何能访问此地址的人均可使用。
+              当前访问控制由服务器环境变量管理。请在部署环境中设置 `ZXAI_ADMIN_KEY` 或 `APP_ADMIN_KEY`。
+            </Typography.Text>
+            <Typography.Text type="secondary">
+              页面内不能修改或关闭这个管理员密钥。
+            </Typography.Text>
+          </Space>
+        ) : !status?.has_password ? (
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Typography.Text type="secondary">
+              启用后，访问页面需要输入管理员密钥。默认不开启，任何能访问此地址的人均可使用。
             </Typography.Text>
             <Form form={enableForm} layout="vertical" onFinish={handleEnable} requiredMark={false} style={{ maxWidth: 360, marginTop: 8 }}>
-              <Form.Item name="password" label="设置访问密码" rules={[{ required: true, message: '请输入密码' }, { min: 6, message: '至少 6 位' }]}>
+              <Form.Item name="password" label="设置管理员密钥" rules={[{ required: true, message: '请输入管理员密钥' }, { min: 6, message: '至少 6 位' }]}>
                 <Input.Password placeholder="至少 6 位" />
               </Form.Item>
-              <Form.Item name="confirm" label="确认密码" rules={[{ required: true, message: '请再次输入' }]}>
-                <Input.Password placeholder="再次输入密码" />
+              <Form.Item name="confirm" label="确认管理员密钥" rules={[{ required: true, message: '请再次输入' }]}>
+                <Input.Password placeholder="再次输入管理员密钥" />
               </Form.Item>
               <Form.Item style={{ marginBottom: 0 }}>
                 <Button type="primary" htmlType="submit" loading={loading} icon={<LockOutlined />}>
-                  启用密码保护
+                  启用管理员密钥
                 </Button>
               </Form.Item>
             </Form>
           </Space>
         ) : (
           <Space direction="vertical" style={{ width: '100%' }}>
-            <Typography.Text type="secondary">当前已启用密码保护，关闭后任何人无需密码即可访问。</Typography.Text>
+            <Typography.Text type="secondary">当前已启用管理员密钥，关闭后任何人无需密钥即可访问。</Typography.Text>
             <Button danger loading={loading} onClick={handleDisableAuth}>
-              关闭密码保护
+              关闭管理员密钥
             </Button>
           </Space>
         )}
       </Card>
 
-      {status?.has_password && (
+      {status?.has_password && !status?.managed_by_env && (
         <>
-          <Card title="修改密码">
+          <Card title="修改管理员密钥">
             <Form form={pwForm} layout="vertical" onFinish={handleChangePassword} requiredMark={false} style={{ maxWidth: 360 }}>
-              <Form.Item name="current_password" label="当前密码" rules={[{ required: true, message: '请输入当前密码' }]}>
-                <Input.Password placeholder="当前密码" />
+              <Form.Item name="current_password" label="当前管理员密钥" rules={[{ required: true, message: '请输入当前管理员密钥' }]}>
+                <Input.Password placeholder="当前管理员密钥" />
               </Form.Item>
-              <Form.Item name="new_password" label="新密码" rules={[{ required: true, message: '请输入新密码' }, { min: 6, message: '至少 6 位' }]}>
-                <Input.Password placeholder="新密码（至少 6 位）" />
+              <Form.Item name="new_password" label="新管理员密钥" rules={[{ required: true, message: '请输入新管理员密钥' }, { min: 6, message: '至少 6 位' }]}>
+                <Input.Password placeholder="新管理员密钥（至少 6 位）" />
               </Form.Item>
-              <Form.Item name="confirm" label="确认新密码" rules={[{ required: true, message: '请再次输入' }]}>
-                <Input.Password placeholder="再次输入新密码" />
+              <Form.Item name="confirm" label="确认新管理员密钥" rules={[{ required: true, message: '请再次输入' }]}>
+                <Input.Password placeholder="再次输入新管理员密钥" />
               </Form.Item>
               <Form.Item style={{ marginBottom: 0 }}>
                 <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
-                  更新密码
+                  更新管理员密钥
                 </Button>
               </Form.Item>
             </Form>

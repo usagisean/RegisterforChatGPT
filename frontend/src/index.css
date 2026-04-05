@@ -59,6 +59,7 @@ body {
   font-family: 'Manrope', 'IBM Plex Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   color: var(--text);
   background: var(--bg-app);
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -1134,8 +1135,63 @@ a {
 }
 
 @media (max-width: 768px) {
+  .login-shell {
+    padding:
+      calc(14px + env(safe-area-inset-top))
+      calc(14px + env(safe-area-inset-right))
+      calc(18px + env(safe-area-inset-bottom))
+      calc(14px + env(safe-area-inset-left));
+  }
+
+  .app-brand {
+    padding:
+      calc(14px + env(safe-area-inset-top))
+      calc(14px + env(safe-area-inset-right))
+      14px
+      calc(14px + env(safe-area-inset-left));
+  }
+
+  .app-nav {
+    padding: 12px;
+    overflow-x: auto;
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+    gap: 10px;
+    min-width: max-content;
+    padding-bottom: 4px;
+  }
+
+  .sidebar-nav__item {
+    min-width: 152px;
+  }
+
   .app-main {
-    padding: 14px;
+    padding:
+      14px
+      calc(14px + env(safe-area-inset-right))
+      calc(18px + env(safe-area-inset-bottom))
+      calc(14px + env(safe-area-inset-left));
+  }
+
+  .app-topbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .app-topbar .ant-space {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .app-topbar .ant-btn {
+    flex: 1 1 auto;
+  }
+
+  .data-toolbar__group {
+    width: 100%;
   }
 
   .page-hero,
@@ -1151,5 +1207,14 @@ a {
 
   .surface-panel__header {
     padding: 16px 16px 0;
+  }
+
+  .task-heatmap__grid {
+    grid-template-columns: repeat(auto-fill, minmax(16px, 1fr));
+    gap: 6px;
+  }
+
+  .task-heatmap__tooltip-overlay .ant-tooltip-inner {
+    max-width: min(84vw, 360px);
   }
 }

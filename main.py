@@ -4,9 +4,11 @@ import sys
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi import HTTPException
+
+
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from core.db import init_db
 from core.registry import load_all
 from api.accounts import router as accounts_router
@@ -72,23 +74,51 @@ async def lifespan(app: FastAPI):
     stop()
 
 
-app = FastAPI(title="Account Manager", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="zxai", version="1.0.0", lifespan=lifespan)
 
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
-    if path.startswith("/api/auth/") or not path.startswith("/api/"):
+    try:
+        from api.auth import SESSION_COOKIE_NAME, auth_enabled, verify_token
+    except HTTPException as e:
+        return JSONResponse({"detail": e.detail}, status_code=e.status_code)
+
+    if not auth_enabled():
         return await call_next(request)
-    from core.config_store import config_store as _cs
-    if not _cs.get("auth_password_hash", ""):
-        return await call_next(request)
+
+    public_page = (
+        path == "/login"
+        or path.startswith("/api/auth/")
+        or path.startswith("/assets/")
+        or path in {"/favicon.ico", "/favicon.svg", "/logo.png", "/icons.svg"}
+        or path.endswith((".png", ".svg", ".ico", ".webmanifest"))
+    )
+
     auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
+    bearer_token = auth_header[7:] if auth_header.startswith("Bearer ") else ""
+    cookie_token = str(request.cookies.get(SESSION_COOKIE_NAME, "") or "").strip()
+    auth_token = bearer_token or cookie_token
+
+    if not path.startswith("/api/"):
+        if public_page:
+            return await call_next(request)
+        if not auth_token:
+            return RedirectResponse(url="/login", status_code=307)
+        try:
+            verify_token(auth_token)
+        except HTTPException:
+            return RedirectResponse(url="/login", status_code=307)
+        return await call_next(request)
+
+    if path.startswith("/api/auth/"):
+        return await call_next(request)
+
+    if not auth_token:
         return JSONResponse({"detail": "未认证，请先登录"}, status_code=401)
     try:
-        from api.auth import verify_token
-        verify_token(auth_header[7:])
+        verify_token(auth_token)
     except HTTPException as e:
         return JSONResponse({"detail": e.detail}, status_code=e.status_code)
     return await call_next(request)

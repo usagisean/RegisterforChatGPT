@@ -35,8 +35,7 @@ function ProtectedLayout() {
     fetch('/api/auth/status')
       .then(r => r.json())
       .then(s => {
-        const token = getToken()
-        if (s.has_password && !token) {
+        if (s.has_password && !s.authenticated && !getToken()) {
           navigate('/login', { replace: true })
         } else {
           setReady(true)
@@ -78,6 +77,14 @@ function AppContent() {
     fetch('/api/auth/status').then(r => r.json()).then(s => setHasPassword(s.has_password)).catch(() => {})
   }, [])
 
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } catch {}
+    clearToken()
+    navigate('/login')
+  }
+
   const isLight = themeMode === 'light'
   const currentTheme = isLight ? lightTheme : darkTheme
   const navItems = [
@@ -104,6 +111,10 @@ function AppContent() {
 
   const activeNav = navItems.find((item) => item.key === activeNavKey) || navItems[0]
 
+  useEffect(() => {
+    document.title = `zxai · ${activeNav.label}`
+  }, [activeNav.label])
+
   return (
     <ConfigProvider theme={currentTheme} locale={zhCN}>
       <AntdApp>
@@ -114,8 +125,8 @@ function AppContent() {
               <ThunderboltOutlined />
             </div>
             <div className="app-brand__text">
-              <span className="app-brand__title">Helix</span>
-              <span className="app-brand__subtitle">ChatGPT 账号后台</span>
+              <span className="app-brand__title">zxai</span>
+              <span className="app-brand__subtitle">ChatGPT 控制台</span>
             </div>
           </div>
           <div className="app-nav">
@@ -161,7 +172,7 @@ function AppContent() {
                 <Button
                   danger
                   icon={<LogoutOutlined />}
-                  onClick={() => { clearToken(); navigate('/login') }}
+                  onClick={handleLogout}
                 >
                   退出登录
                 </Button>

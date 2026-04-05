@@ -11,13 +11,14 @@ import struct
 import time
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 _bearer = HTTPBearer(auto_error=False)
+SESSION_COOKIE_NAME = "zxai_session"
 
 
 # ── Config helpers ─────────────────────────────────────────────────────────────
@@ -25,6 +26,50 @@ _bearer = HTTPBearer(auto_error=False)
 def _cfg():
     from core.config_store import config_store
     return config_store
+
+
+def _env_admin_key() -> str:
+    return str(os.getenv("ZXAI_ADMIN_KEY", "") or os.getenv("APP_ADMIN_KEY", "") or "").strip()
+
+
+def auth_enabled() -> bool:
+    return bool(_env_admin_key() or _cfg().get("auth_password_hash", ""))
+
+
+def auth_managed_by_env() -> bool:
+    return bool(_env_admin_key())
+
+
+def _verify_admin_secret(secret: str) -> bool:
+    env_secret = _env_admin_key()
+    if env_secret:
+        return hmac.compare_digest(str(secret or ""), env_secret)
+    stored = _cfg().get("auth_password_hash", "")
+    if not stored:
+        return False
+    return hmac.compare_digest(_hash_pw(secret), stored)
+
+
+def _request_token(request: Request, credentials: Optional[HTTPAuthorizationCredentials] = None) -> str:
+    if credentials is not None and credentials.credentials:
+        return credentials.credentials
+    return str(request.cookies.get(SESSION_COOKIE_NAME, "") or "").strip()
+
+
+def _set_auth_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        SESSION_COOKIE_NAME,
+        token,
+        max_age=86400 * 7,
+        httponly=True,
+        samesite="lax",
+        secure=False,
+        path="/",
+    )
+
+
+def _clear_auth_cookie(response: Response) -> None:
+    response.delete_cookie(SESSION_COOKIE_NAME, path="/")
 
 
 # ── JWT (HS256, stdlib only) ───────────────────────────────────────────────────
@@ -83,10 +128,14 @@ def verify_token(token: str) -> dict:
     return data
 
 
-def require_auth(credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer)) -> None:
-    if credentials is None:
+def require_auth(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
+) -> None:
+    token = _request_token(request, credentials)
+    if not token:
         raise HTTPException(status_code=401, detail="未认证")
-    verify_token(credentials.credentials)
+    verify_token(token)
 
 
 # ── Password ───────────────────────────────────────────────────────────────────
@@ -101,7 +150,7 @@ def generate_totp_secret() -> str:
     return base64.b32encode(secrets.token_bytes(20)).decode()
 
 
-def totp_uri(secret: str, issuer: str = "AccountManager") -> str:
+def totp_uri(secret: str, issuer: str = "zxai") -> str:
     from urllib.parse import quote
     return f"otpauth://totp/{quote(issuer)}?secret={secret}&issuer={quote(issuer)}"
 
@@ -157,22 +206,38 @@ class EnableTotpRequest(BaseModel):
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.get("/status")
-def auth_status():
+def auth_status(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
+):
     cfg = _cfg()
+    token = _request_token(request, credentials)
+    authenticated = False
+    if token:
+        try:
+            verify_token(token)
+            authenticated = True
+        except HTTPException:
+            authenticated = False
     return {
-        "has_password": bool(cfg.get("auth_password_hash", "")),
+        "has_password": auth_enabled(),
         "has_totp": bool(cfg.get("auth_totp_secret", "")),
+        "managed_by_env": auth_managed_by_env(),
+        "authenticated": authenticated,
     }
 
 
 @router.post("/setup")
 def setup_password(
     body: SetupPasswordRequest,
+    response: Response,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
 ):
     """Set initial password, or update it only when the caller is already authenticated."""
     if not body.password or len(body.password) < 6:
         raise HTTPException(status_code=400, detail="密码至少需要 6 位")
+    if auth_managed_by_env():
+        raise HTTPException(status_code=409, detail="当前由环境变量管理员密钥控制，不能在页面内修改")
     cfg = _cfg()
     if cfg.get("auth_password_hash", ""):
         if credentials is None:
@@ -180,12 +245,18 @@ def setup_password(
         verify_token(credentials.credentials)
     cfg.set("auth_password_hash", _hash_pw(body.password))
     token = create_token()
+    _set_auth_cookie(response, token)
     return {"ok": True, "access_token": token, "token_type": "bearer"}
 
 
 @router.post("/disable")
-def disable_auth(credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer)):
+def disable_auth(
+    response: Response,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
+):
     """Disable password protection. Requires auth only if a password is currently set."""
+    if auth_managed_by_env():
+        raise HTTPException(status_code=409, detail="当前由环境变量管理员密钥控制，不能在页面内关闭")
     cfg = _cfg()
     if cfg.get("auth_password_hash", ""):
         if credentials is None:
@@ -193,16 +264,16 @@ def disable_auth(credentials: Optional[HTTPAuthorizationCredentials] = Depends(_
         verify_token(credentials.credentials)
     cfg.set("auth_password_hash", "")
     cfg.set("auth_totp_secret", "")
+    _clear_auth_cookie(response)
     return {"ok": True}
 
 
 @router.post("/login")
-def login(body: LoginRequest):
+def login(body: LoginRequest, response: Response):
     cfg = _cfg()
-    stored = cfg.get("auth_password_hash", "")
-    if not stored:
+    if not auth_enabled():
         raise HTTPException(status_code=403, detail="no_password_set")
-    if not hmac.compare_digest(_hash_pw(body.password), stored):
+    if not _verify_admin_secret(body.password):
         raise HTTPException(status_code=401, detail="密码错误")
     totp_secret = cfg.get("auth_totp_secret", "")
     if totp_secret:
@@ -210,11 +281,12 @@ def login(body: LoginRequest):
         _pending_2fa[temp] = time.time() + 300  # 5 min expiry
         return {"requires_2fa": True, "temp_token": temp}
     token = create_token()
+    _set_auth_cookie(response, token)
     return {"requires_2fa": False, "access_token": token, "token_type": "bearer"}
 
 
 @router.post("/verify-totp")
-def verify_totp_route(body: TotpVerifyRequest):
+def verify_totp_route(body: TotpVerifyRequest, response: Response):
     expiry = _pending_2fa.get(body.temp_token)
     if not expiry or time.time() > expiry:
         raise HTTPException(status_code=401, detail="临时令牌无效或已过期，请重新登录")
@@ -226,16 +298,20 @@ def verify_totp_route(body: TotpVerifyRequest):
         raise HTTPException(status_code=400, detail="验证码错误")
     _pending_2fa.pop(body.temp_token, None)
     token = create_token()
+    _set_auth_cookie(response, token)
     return {"access_token": token, "token_type": "bearer"}
 
 
 @router.post("/logout")
-def logout():
+def logout(response: Response):
+    _clear_auth_cookie(response)
     return {"ok": True}
 
 
 @router.post("/change-password", dependencies=[Depends(require_auth)])
 def change_password(body: ChangePasswordRequest):
+    if auth_managed_by_env():
+        raise HTTPException(status_code=409, detail="当前由环境变量管理员密钥控制，不能在页面内修改")
     cfg = _cfg()
     stored = cfg.get("auth_password_hash", "")
     if stored and not hmac.compare_digest(_hash_pw(body.current_password), stored):

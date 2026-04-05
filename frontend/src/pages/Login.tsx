@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { App, ConfigProvider, Form, Input, Button, Typography } from 'antd'
 import { LockOutlined, SafetyCertificateOutlined, UserOutlined } from '@ant-design/icons'
 import { setToken } from '@/lib/utils'
@@ -11,6 +11,10 @@ function LoginContent() {
   const [step, setStep] = useState<Step>('password')
   const [tempToken, setTempToken] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    document.title = 'zxai'
+  }, [])
 
   const handleLogin = async (values: { password: string }) => {
     setLoading(true)
@@ -59,10 +63,10 @@ function LoginContent() {
     return (
       <div className="login-shell">
         <div className="login-hero">
-          <span className="login-hero__eyebrow">HELIX ACCESS</span>
-          <h1 className="login-hero__title">继续完成二次验证</h1>
+          <span className="login-hero__eyebrow">ZXAI ACCESS</span>
+          <h1 className="login-hero__title">继续完成管理员验证</h1>
           <p className="login-hero__description">
-            访问密码已经通过，剩下这一步只是确认你手上的验证器。完成后会直接回到主控台。
+            管理员密钥已经通过，剩下这一步只是确认你手上的验证器。完成后会直接回到主控台。
           </p>
         </div>
         <div className="login-panel">
@@ -100,7 +104,7 @@ function LoginContent() {
               </Form.Item>
               <div style={{ textAlign: 'center', marginTop: 12 }}>
                 <Button type="link" size="small" onClick={() => setStep('password')}>
-                  返回密码登录
+                  返回管理员密钥登录
                 </Button>
               </div>
             </Form>
@@ -113,23 +117,23 @@ function LoginContent() {
   return (
     <div className="login-shell">
       <div className="login-hero">
-        <span className="login-hero__eyebrow">HELIX</span>
-        <h1 className="login-hero__title">一个更像产品，而不是脚本面板的后台。</h1>
+        <span className="login-hero__eyebrow">ZXAI</span>
+        <h1 className="login-hero__title">只为你自己保留入口的 ChatGPT 控制台。</h1>
         <p className="login-hero__description">
-          聚焦 ChatGPT 账号的注册、状态、代理和远端维护。所有页面都围绕一个目标设计：更快定位问题，更顺手地批量操作。
+          通过管理员密钥进入后台。所有页面只保留 ChatGPT 相关工作流，适合在本地或 VPS 上长期运行和盯盘。
         </p>
         <div className="login-hero__grid">
           <div className="login-hero__card">
-            <strong>单平台聚焦</strong>
-            <span>前台只保留 ChatGPT，不再把别的平台塞进主导航里。</span>
+            <strong>管理员密钥</strong>
+            <span>启用后，页面和 API 都必须先通过管理员密钥验证。</span>
           </div>
           <div className="login-hero__card">
             <strong>实时追踪</strong>
             <span>日志进入首页监控面板，不用一直守着弹窗。</span>
           </div>
           <div className="login-hero__card">
-            <strong>高对比视图</strong>
-            <span>表格、日志、控制条全部提高对比度，信息层级更直接。</span>
+            <strong>手机兼容</strong>
+            <span>iPhone 打开也能正常导航、滚动和查看监控墙。</span>
           </div>
           <div className="login-hero__card">
             <strong>长期运行</strong>
@@ -143,22 +147,22 @@ function LoginContent() {
             <UserOutlined />
           </div>
           <Typography.Title level={2} className="login-panel__title">
-            Helix
+            zxai
           </Typography.Title>
           <Typography.Text className="login-panel__description">
-            输入访问密码进入控制台。
+            输入管理员密钥进入控制台。
           </Typography.Text>
           <Form layout="vertical" onFinish={handleLogin} requiredMark={false}>
             <Form.Item
               name="password"
-              label="密码"
-              rules={[{ required: true, message: '请输入密码' }]}
+              label="管理员密钥"
+              rules={[{ required: true, message: '请输入管理员密钥' }]}
             >
-              <Input.Password prefix={<LockOutlined />} placeholder="请输入访问密码" size="large" />
+              <Input.Password prefix={<LockOutlined />} placeholder="请输入管理员密钥" size="large" />
             </Form.Item>
             <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>
               <Button type="primary" htmlType="submit" block size="large" loading={loading}>
-                登录
+                进入后台
               </Button>
             </Form.Item>
           </Form>
