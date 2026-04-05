@@ -2515,12 +2515,59 @@ class CFWorkerMailbox(BaseMailbox):
         **kwargs,
     ) -> str:
         import re
+        import time
         from datetime import datetime, timezone
 
         seen = set(before_ids or [])
         exclude_codes = set(kwargs.get("exclude_codes") or [])
-        otp_sent_at = kwargs.get("otp_sent_at")
-        otp_cutoff = float(otp_sent_at) - 2 if otp_sent_at else None
+
+        def _normalize_timestamp(value) -> Optional[float]:
+            if value in (None, ""):
+                return None
+            if isinstance(value, (int, float)):
+                numeric = float(value)
+                return numeric / 1000 if numeric > 10_000_000_000 else numeric
+            text = str(value).strip()
+            if not text:
+                return None
+            try:
+                numeric = float(text)
+                return numeric / 1000 if numeric > 10_000_000_000 else numeric
+            except (TypeError, ValueError):
+                return None
+
+        otp_sent_at = _normalize_timestamp(kwargs.get("otp_sent_at"))
+        otp_cutoff = otp_sent_at - 30 if otp_sent_at else None
+
+        def _parse_mail_timestamp(value, reference_ts: Optional[float]) -> Optional[float]:
+            numeric = _normalize_timestamp(value)
+            if numeric is not None:
+                return numeric
+
+            text = str(value or "").strip()
+            if not text:
+                return None
+
+            try:
+                normalized = text.replace("Z", "+00:00")
+                dt = datetime.fromisoformat(normalized)
+                if dt.tzinfo is not None:
+                    return dt.timestamp()
+            except ValueError:
+                pass
+
+            try:
+                dt = datetime.strptime(text, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                return None
+
+            local_tz = datetime.now().astimezone().tzinfo or timezone.utc
+            candidates = [
+                dt.replace(tzinfo=timezone.utc).timestamp(),
+                dt.replace(tzinfo=local_tz).timestamp(),
+            ]
+            reference = reference_ts or time.time()
+            return min(candidates, key=lambda ts: abs(ts - reference))
 
         def poll_once() -> Optional[str]:
             try:
@@ -2533,11 +2580,7 @@ class CFWorkerMailbox(BaseMailbox):
                     created_at = str(mail.get("created_at", "") or "").strip()
                     if otp_cutoff and created_at:
                         try:
-                            mail_ts = (
-                                datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S")
-                                .replace(tzinfo=timezone.utc)
-                                .timestamp()
-                            )
+                            mail_ts = _parse_mail_timestamp(created_at, otp_sent_at)
                             if mail_ts < otp_cutoff:
                                 self._log(
                                     f"[CFWorker] \u8df3\u8fc7\u65e7\u90ae\u4ef6 id={mid} created_at={created_at}"

@@ -2,6 +2,7 @@
 
 import random
 import string
+import time
 
 from core.base_mailbox import BaseMailbox
 from core.base_platform import Account, BasePlatform, RegisterConfig
@@ -87,11 +88,57 @@ class ChatGPTPlatform(BasePlatform):
                     self._acct = None
                     self._email = _fixed_email
                     self._before_ids = set()
+                    self._used_codes: set[str] = set()
+                    self._last_code: str = ""
+                    self._last_code_at: float = 0.0
+                    self._last_success_code: str = ""
+                    self._last_success_code_at: float = 0.0
+
+                @property
+                def last_code(self) -> str:
+                    return self._last_success_code or self._last_code
+
+                def _remember_code(self, code: str, *, successful: bool = False) -> None:
+                    code = str(code or "").strip()
+                    if not code:
+                        return
+                    now = time.time()
+                    self._last_code = code
+                    self._last_code_at = now
+                    self._used_codes.add(code)
+                    if successful:
+                        self._last_success_code = code
+                        self._last_success_code_at = now
+
+                def remember_successful_code(self, code: str) -> None:
+                    self._remember_code(code, successful=True)
+
+                def get_recent_code(
+                    self,
+                    max_age_seconds: int = 180,
+                    *,
+                    prefer_successful: bool = True,
+                ) -> str:
+                    now = time.time()
+                    if (
+                        prefer_successful
+                        and self._last_success_code
+                        and now - self._last_success_code_at <= max_age_seconds
+                    ):
+                        return self._last_success_code
+                    if self._last_code and now - self._last_code_at <= max_age_seconds:
+                        return self._last_code
+                    return ""
 
                 def create_email(self, config=None):
                     if self._email and self._acct and _fixed_email:
                         return {"email": self._email, "service_id": self._acct.account_id, "token": ""}
                     self._acct = _mailbox.get_email()
+                    self._used_codes.clear()
+                    self._last_code = ""
+                    self._last_code_at = 0.0
+                    self._last_success_code = ""
+                    self._last_success_code_at = 0.0
                     get_current_ids = getattr(_mailbox, "get_current_ids", None)
                     if callable(get_current_ids):
                         self._before_ids = set(get_current_ids(self._acct) or [])
@@ -115,14 +162,18 @@ class ChatGPTPlatform(BasePlatform):
                 ):
                     if not self._acct:
                         raise RuntimeError("邮箱账户尚未创建，无法获取验证码")
-                    return _mailbox.wait_for_code(
+                    excluded = set(exclude_codes or set()) | set(self._used_codes)
+                    code = _mailbox.wait_for_code(
                         self._acct,
                         keyword="",
                         timeout=_resolve_mailbox_timeout(timeout),
                         before_ids=self._before_ids,
                         otp_sent_at=otp_sent_at,
-                        exclude_codes=exclude_codes,
+                        exclude_codes=excluded,
                     )
+                    if code:
+                        self._remember_code(code, successful=False)
+                    return code
 
                 def update_status(self, success, error=None):
                     pass
@@ -144,10 +195,56 @@ class ChatGPTPlatform(BasePlatform):
                 def __init__(self):
                     self._acct = None
                     self._before_ids = set()
+                    self._used_codes: set[str] = set()
+                    self._last_code: str = ""
+                    self._last_code_at: float = 0.0
+                    self._last_success_code: str = ""
+                    self._last_success_code_at: float = 0.0
+
+                @property
+                def last_code(self) -> str:
+                    return self._last_success_code or self._last_code
+
+                def _remember_code(self, code: str, *, successful: bool = False) -> None:
+                    code = str(code or "").strip()
+                    if not code:
+                        return
+                    now = time.time()
+                    self._last_code = code
+                    self._last_code_at = now
+                    self._used_codes.add(code)
+                    if successful:
+                        self._last_success_code = code
+                        self._last_success_code_at = now
+
+                def remember_successful_code(self, code: str) -> None:
+                    self._remember_code(code, successful=True)
+
+                def get_recent_code(
+                    self,
+                    max_age_seconds: int = 180,
+                    *,
+                    prefer_successful: bool = True,
+                ) -> str:
+                    now = time.time()
+                    if (
+                        prefer_successful
+                        and self._last_success_code
+                        and now - self._last_success_code_at <= max_age_seconds
+                    ):
+                        return self._last_success_code
+                    if self._last_code and now - self._last_code_at <= max_age_seconds:
+                        return self._last_code
+                    return ""
 
                 def create_email(self, config=None):
                     acct = _tmail.get_email()
                     self._acct = acct
+                    self._used_codes.clear()
+                    self._last_code = ""
+                    self._last_code_at = 0.0
+                    self._last_success_code = ""
+                    self._last_success_code_at = 0.0
                     self._before_ids = set(_tmail.get_current_ids(acct) or [])
                     resolved_email = str(getattr(acct, "email", "") or "").strip()
                     if not resolved_email:
@@ -163,14 +260,18 @@ class ChatGPTPlatform(BasePlatform):
                     otp_sent_at=None,
                     exclude_codes=None,
                 ):
-                    return _tmail.wait_for_code(
+                    excluded = set(exclude_codes or set()) | set(self._used_codes)
+                    code = _tmail.wait_for_code(
                         self._acct,
                         keyword="",
                         timeout=_resolve_mailbox_timeout(timeout),
                         before_ids=self._before_ids,
                         otp_sent_at=otp_sent_at,
-                        exclude_codes=exclude_codes,
+                        exclude_codes=excluded,
                     )
+                    if code:
+                        self._remember_code(code, successful=False)
+                    return code
 
                 def update_status(self, success, error=None):
                     pass
