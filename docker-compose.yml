@@ -23,7 +23,7 @@ services:
       SOLVER_BROWSER_TYPE: ${SOLVER_BROWSER_TYPE:-chromium}
       PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
       - "127.0.0.1:8889:8889"
     volumes:
       - ${APP_RUNTIME_BIND:-./data}:/runtime
