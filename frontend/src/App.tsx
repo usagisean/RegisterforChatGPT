@@ -1,13 +1,12 @@
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { App as AntdApp, ConfigProvider, Button, Spin, Space, Tag, Typography } from 'antd'
+import { App as AntdApp, ConfigProvider, Button, Spin, Space, Typography } from 'antd'
 import {
   DashboardOutlined,
   UserOutlined,
   GlobalOutlined,
   HistoryOutlined,
   SettingOutlined,
-  RocketOutlined,
   SunOutlined,
   MoonOutlined,
   LogoutOutlined,
@@ -88,32 +87,28 @@ function AppContent() {
   const isLight = themeMode === 'light'
   const currentTheme = isLight ? lightTheme : darkTheme
   const navItems = [
-    { key: '/', icon: <DashboardOutlined />, label: '总览', description: '今日状态' },
-    { key: '/console', icon: <ThunderboltOutlined />, label: '控制台', description: '实时任务' },
-    { key: '/accounts/chatgpt', icon: <UserOutlined />, label: '账号', description: 'ChatGPT' },
-    { key: '/register', icon: <RocketOutlined />, label: '任务', description: '新建与跟踪' },
+    { key: '/', icon: <DashboardOutlined />, label: '总览', description: '监控与进度' },
+    { key: '/accounts/chatgpt', icon: <UserOutlined />, label: '账号', description: '筛选与操作' },
     { key: '/history', icon: <HistoryOutlined />, label: '历史', description: '执行记录' },
-    { key: '/proxies', icon: <GlobalOutlined />, label: '代理', description: '代理池' },
+    { key: '/proxies', icon: <GlobalOutlined />, label: '代理', description: '连接管理' },
     { key: '/settings', icon: <SettingOutlined />, label: '设置', description: '服务与安全' },
   ]
 
-  const activeNavKey = (() => {
+  const pageMeta = (() => {
     const path = location.pathname
-    if (path === '/accounts') return '/accounts/chatgpt'
-    if (path.startsWith('/accounts')) return '/accounts/chatgpt'
-    if (path.startsWith('/console')) return '/console'
-    if (path.startsWith('/register')) return '/register'
-    if (path.startsWith('/history')) return '/history'
-    if (path.startsWith('/proxies')) return '/proxies'
-    if (path.startsWith('/settings')) return '/settings'
-    return '/'
+    if (path.startsWith('/console')) return { navKey: '/', label: '总览', description: '实时任务监控' }
+    if (path.startsWith('/register')) return { navKey: '/accounts/chatgpt', label: '账号', description: '注册与批量处理' }
+    if (path === '/accounts' || path.startsWith('/accounts')) return { navKey: '/accounts/chatgpt', label: '账号', description: '筛选与操作' }
+    if (path.startsWith('/history')) return { navKey: '/history', label: '历史', description: '执行记录' }
+    if (path.startsWith('/proxies')) return { navKey: '/proxies', label: '代理', description: '连接管理' }
+    if (path.startsWith('/settings')) return { navKey: '/settings', label: '设置', description: '服务与安全' }
+    return { navKey: '/', label: '总览', description: '监控与进度' }
   })()
-
-  const activeNav = navItems.find((item) => item.key === activeNavKey) || navItems[0]
+  const activeNavKey = pageMeta.navKey
 
   useEffect(() => {
-    document.title = `zxai · ${activeNav.label}`
-  }, [activeNav.label])
+    document.title = `zxai · ${pageMeta.label}`
+  }, [pageMeta.label])
 
   return (
     <ConfigProvider theme={currentTheme} locale={zhCN}>
@@ -126,7 +121,7 @@ function AppContent() {
             </div>
             <div className="app-brand__text">
               <span className="app-brand__title">zxai</span>
-              <span className="app-brand__subtitle">ChatGPT 控制台</span>
+              <span className="app-brand__subtitle">运营后台</span>
             </div>
           </div>
           <div className="app-nav">
@@ -154,14 +149,10 @@ function AppContent() {
         <main className="app-main">
           <div className="app-topbar">
             <div className="app-topbar__current">
-              <Text className="app-topbar__section">{activeNav.label}</Text>
-              <Text className="app-topbar__hint">{activeNav.description}</Text>
+              <Text className="app-topbar__section">{pageMeta.label}</Text>
+              <Text className="app-topbar__hint">{pageMeta.description}</Text>
             </div>
             <Space wrap>
-              <Tag color="blue">ChatGPT</Tag>
-              <Button type="default" onClick={() => navigate('/console')}>
-                实时控制台
-              </Button>
               <Button
                 icon={isLight ? <SunOutlined /> : <MoonOutlined />}
                 onClick={() => setThemeMode(isLight ? 'dark' : 'light')}

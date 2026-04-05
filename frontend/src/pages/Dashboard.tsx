@@ -14,7 +14,7 @@ import { SurfacePanel } from '@/components/SurfacePanel'
 import { apiFetch } from '@/lib/utils'
 
 const PLATFORM_COLORS: Record<string, string> = {
-  chatgpt: '#5b8cff',
+  chatgpt: '#4ade80',
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -49,7 +49,7 @@ export default function Dashboard() {
       title: '总账号数',
       value: stats?.total ?? 0,
       icon: <UserOutlined style={{ fontSize: 32 }} />,
-      color: '#5b8cff',
+      color: '',
     },
     {
       title: '试用中',

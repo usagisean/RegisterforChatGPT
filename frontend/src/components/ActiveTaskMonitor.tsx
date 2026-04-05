@@ -292,13 +292,13 @@ function buildAccountHeatmap(snapshot: TaskSnapshot | null, trackedTask: Tracked
 function heatStatusMeta(status: AccountHeatStatus) {
   switch (status) {
     case 'success':
-      return { color: '#34d399', label: 'CPA成功' }
+      return { color: '#4ade80', label: 'CPA成功' }
     case 'failed':
       return { color: '#fb7185', label: '失败' }
     case 'running':
-      return { color: '#4d8aff', label: '运行中' }
+      return { color: '#22c55e', label: '运行中' }
     case 'registered':
-      return { color: '#fbbf24', label: '待上传' }
+      return { color: '#f59e0b', label: '待上传' }
     case 'skipped':
       return { color: '#94a3b8', label: '已跳过' }
     default:
@@ -439,7 +439,7 @@ export function ActiveTaskMonitor({ showEmptyState = false }: { showEmptyState?:
             {trackedTask.title || '任务跟踪'}
           </Title>
           <Space wrap>
-            <Tag color="blue">{trackedTask.platform}</Tag>
+            <Tag color="success">{trackedTask.platform}</Tag>
             {trackedTask.source ? <Tag>{trackedTask.source}</Tag> : null}
             <Tag color={statusColor(snapshot?.status)}>{snapshot?.status || 'running'}</Tag>
             {snapshot?.progress ? <Tag>{snapshot.progress}</Tag> : null}
@@ -453,7 +453,7 @@ export function ActiveTaskMonitor({ showEmptyState = false }: { showEmptyState?:
             <span>总进度</span>
             <span>{snapshot?.progress || (total > 0 ? `0/${total}` : '0/0')}</span>
           </div>
-          <Progress percent={overallPercent} showInfo={false} strokeColor="#4d8aff" />
+          <Progress percent={overallPercent} showInfo={false} strokeColor="#22c55e" />
         </div>
         <div className="thread-lanes">
           {threadLanes.map((lane) => {
@@ -479,7 +479,7 @@ export function ActiveTaskMonitor({ showEmptyState = false }: { showEmptyState?:
                   percent={lanePercent}
                   showInfo={false}
                   status={lane.status === 'failed' ? 'exception' : lane.status === 'success' ? 'success' : 'active'}
-                  strokeColor={lane.status === 'failed' ? '#fb7185' : lane.status === 'success' ? '#34d399' : '#4d8aff'}
+                  strokeColor={lane.status === 'failed' ? '#fb7185' : lane.status === 'success' ? '#4ade80' : '#22c55e'}
                 />
                 <div className="thread-lane__meta">
                   <span>{lane.detail || '等待分配任务'}</span>
@@ -494,9 +494,9 @@ export function ActiveTaskMonitor({ showEmptyState = false }: { showEmptyState?:
             <div className="task-heatmap__header">
               <div className="task-heatmap__title">CPA 热力图</div>
               <div className="task-heatmap__legend">
-                <span className="task-heatmap__legend-item"><i style={{ background: '#34d399' }} /> 成功 {heatSuccess}</span>
+                <span className="task-heatmap__legend-item"><i style={{ background: '#4ade80' }} /> 成功 {heatSuccess}</span>
                 <span className="task-heatmap__legend-item"><i style={{ background: '#fb7185' }} /> 失败 {heatFailed}</span>
-                <span className="task-heatmap__legend-item"><i style={{ background: '#fbbf24' }} /> 待上传</span>
+                <span className="task-heatmap__legend-item"><i style={{ background: '#f59e0b' }} /> 待上传</span>
               </div>
             </div>
             <div className="task-heatmap__grid">

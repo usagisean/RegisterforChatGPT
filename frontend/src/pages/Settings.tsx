@@ -578,7 +578,7 @@ function CFWorkerDomainPoolSection({ form }: { form: any }) {
             {enabledDomains.map((domain) => (
               <Tag
                 key={domain}
-                color="blue"
+                color="success"
                 closable
                 onClose={(event) => {
                   event.preventDefault()
@@ -736,7 +736,7 @@ function AppleMailPoolImportSection({ form }: { form: any }) {
         </Space>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <Tag color="blue">已导入: {snapshot?.count || 0} 个邮箱</Tag>
+          <Tag color="success">已导入: {snapshot?.count || 0} 个邮箱</Tag>
           {snapshot?.filename ? <Typography.Text type="secondary">当前文件: {snapshot.filename}</Typography.Text> : null}
         </div>
 
@@ -948,7 +948,7 @@ function IntegrationsPanel() {
               <Tag color={item.running ? 'green' : 'default'} style={{ marginLeft: 8 }}>
                 {item.running ? '运行中' : '未运行'}
               </Tag>
-              <Tag color={item.repo_exists ? 'blue' : 'orange'} style={{ marginLeft: 8 }}>
+              <Tag color={item.repo_exists ? 'success' : 'orange'} style={{ marginLeft: 8 }}>
                 {item.repo_exists ? '已安装' : '未安装'}
               </Tag>
               {item.pid ? <span style={{ marginLeft: 8 }}>PID: {item.pid}</span> : null}

@@ -29,11 +29,9 @@ import {
   DeleteOutlined,
   SyncOutlined,
   SafetyOutlined,
-  UserOutlined,
+  RocketOutlined,
 } from '@ant-design/icons'
 import { ChatGPTRegistrationModeSwitch } from '@/components/ChatGPTRegistrationModeSwitch'
-import { HeroChip, PageHero } from '@/components/PageHero'
-import { StatTile } from '@/components/StatTile'
 import { SurfacePanel } from '@/components/SurfacePanel'
 import { TaskLogPanel } from '@/components/TaskLogPanel'
 import { usePersistentChatGPTRegistrationMode } from '@/hooks/usePersistentChatGPTRegistrationMode'
@@ -45,12 +43,12 @@ import { normalizeExecutorForPlatform } from '@/lib/platformExecutorOptions'
 
 const { Text } = Typography
 
-const STATUS_COLORS: Record<string, string> = {
-  registered: 'default',
-  trial: 'success',
-  subscribed: 'success',
-  expired: 'warning',
-  invalid: 'error',
+const ACCOUNT_STATUS_META: Record<string, { color: string; label: string; note: string }> = {
+  registered: { color: 'default', label: '已注册', note: '已拿到基础凭证' },
+  trial: { color: 'success', label: '试用中', note: '当前账号状态正常' },
+  subscribed: { color: 'success', label: '已订阅', note: '存在有效订阅' },
+  expired: { color: 'warning', label: '已过期', note: '订阅或可用期已结束' },
+  invalid: { color: 'error', label: '已失效', note: '本地或远端凭证无效' },
 }
 
 const PLATFORM_TITLES: Record<string, string> = {
@@ -93,6 +91,21 @@ function formatCreatedAt(value?: string) {
   }
 }
 
+function shortenText(value?: string, fallback = '-', maxLength = 42) {
+  const text = String(value || '').trim()
+  if (!text) return fallback
+  if (text.length <= maxLength) return text
+  return `${text.slice(0, maxLength - 1)}…`
+}
+
+function accountStatusMeta(status?: string) {
+  return ACCOUNT_STATUS_META[String(status || '').trim().toLowerCase()] || {
+    color: 'default',
+    label: status || '未归类',
+    note: '状态值未归档',
+  }
+}
+
 function authStateMeta(state?: string) {
   switch (state) {
     case 'access_token_valid':
@@ -110,7 +123,7 @@ function authStateMeta(state?: string) {
     case 'probe_failed':
       return { color: 'warning', label: '探测失败' }
     default:
-      return { color: 'default', label: '未探测' }
+      return { color: 'default', label: '未检查' }
   }
 }
 
@@ -129,11 +142,11 @@ function codexStateMeta(state?: string) {
     case 'quota_exhausted':
       return { color: 'warning', label: '额度耗尽' }
     case 'skipped_auth_invalid':
-      return { color: 'default', label: '未测' }
+      return { color: 'default', label: '未检查' }
     case 'probe_failed':
       return { color: 'warning', label: '探测失败' }
     default:
-      return { color: 'default', label: '未探测' }
+      return { color: 'default', label: '未检查' }
   }
 }
 
@@ -150,7 +163,7 @@ function planMeta(plan?: string) {
     case 'free':
       return { color: 'default', label: 'Free' }
     default:
-      return { color: 'default', label: '未知' }
+      return { color: 'default', label: '未返回' }
   }
 }
 
@@ -267,7 +280,7 @@ function LocalProbeSummary({ probe }: { probe: any }) {
 
 function cliproxyStateMeta(sync: any) {
   if (!sync || Object.keys(sync).length === 0) {
-    return { color: 'default', label: '未同步' }
+    return { color: 'default', label: '未检查' }
   }
   if (sync.remote_state === 'unreachable') {
     return { color: 'error', label: '不可连接' }
@@ -276,7 +289,7 @@ function cliproxyStateMeta(sync: any) {
     return { color: 'default', label: '远端未发现' }
   }
   if (!sync.uploaded) {
-    return { color: 'default', label: '未发现' }
+    return { color: 'default', label: '未上传' }
   }
   if (sync.remote_state === 'usable') {
     return { color: 'success', label: '远端可用' }
@@ -311,7 +324,7 @@ function cliproxyStateMeta(sync: any) {
   if (sync.status === 'disabled') {
     return { color: 'default', label: '远端禁用' }
   }
-  return { color: 'default', label: '未同步' }
+  return { color: 'default', label: '未检查' }
 }
 
 function CliproxySyncSummary({ sync }: { sync: any }) {
@@ -927,7 +940,16 @@ export default function Accounts() {
   const backfillButtonLabel = () => {
     const scope = getBackfillScope()
     const count = scope === 'selected' ? selectedRowKeys.length : total
-    return scope === 'selected' ? `补传所选远端未发现 (${count})` : `补传远端未发现 (${count})`
+    return scope === 'selected' ? `补传缺失凭证（已选 ${count}）` : `补传缺失凭证（${count}）`
+  }
+
+  const syncButtonLabel = (kind: 'probe' | 'remote') => {
+    const scope = getStatusSyncScope()
+    const count = scope === 'selected' ? selectedRowKeys.length : total
+    if (kind === 'probe') {
+      return scope === 'selected' ? `检查本地状态（已选 ${count}）` : `检查本地状态（${count}）`
+    }
+    return scope === 'selected' ? `检查远端状态（已选 ${count}）` : `检查远端状态（${count}）`
   }
 
   const isChatgptPlatform = currentPlatform === 'chatgpt'
@@ -961,6 +983,10 @@ export default function Accounts() {
     background: token.colorFillAlter,
   }
 
+  const selectedCount = selectedRowKeys.length
+  const pendingUploadCount = accounts.filter((account) => String(account.cliproxySync?.remote_state || '').trim().toLowerCase() === 'not_found').length
+  const healthyLocalCount = accounts.filter((account) => String(account.chatgptLocal?.auth?.state || '').trim().toLowerCase() === 'access_token_valid').length
+
   const columns: any[] = [
     {
       title: '邮箱',
@@ -985,51 +1011,62 @@ export default function Accounts() {
       ),
     },
     {
-      title: '密码',
-      dataIndex: 'password',
-      key: 'password',
-      width: 150,
-      render: (text: string) => (
-        <Space size={6} style={{ width: '100%', justifyContent: 'space-between' }}>
-          <Text style={{ ...secretPreviewStyle, maxWidth: 90 }} title={text}>
-            {text}
-          </Text>
-          <Button type="text" size="small" icon={<CopyOutlined />} onClick={() => copyText(text)} />
-        </Space>
-      ),
-    },
-    {
-      title: 'RT',
-      key: 'refresh_token',
-      width: 120,
+      title: '凭证',
+      key: 'credential',
+      width: 220,
       render: (_: any, record: any) => {
         const rt = getRefreshToken(record)
+        const password = record.password || ''
         if (!rt) return <span style={{ color: '#ccc' }}>-</span>
         return (
-          <Space size={6} style={{ width: '100%', justifyContent: 'space-between' }}>
-            <Text style={{ ...secretPreviewStyle, fontSize: 11, maxWidth: 58 }} title={rt}>
-              {rt}
-            </Text>
-            <Button type="text" size="small" icon={<CopyOutlined />} onClick={() => copyText(rt)} />
-          </Space>
+          <div style={{ ...cellStackStyle, ...compactPanelStyle, gap: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <Text type="secondary" style={secondaryTextStyle}>密码</Text>
+              <Space size={4}>
+                <Text style={{ ...secretPreviewStyle, maxWidth: 96 }} title={password}>
+                  {password || '未保存'}
+                </Text>
+                {password ? <Button type="text" size="small" icon={<CopyOutlined />} onClick={() => copyText(password)} /> : null}
+              </Space>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <Text type="secondary" style={secondaryTextStyle}>Refresh Token</Text>
+              {rt ? (
+                <Space size={4}>
+                  <Tag color="success" style={{ marginInlineEnd: 0 }}>已保存</Tag>
+                  <Button type="text" size="small" icon={<CopyOutlined />} onClick={() => copyText(rt)} />
+                </Space>
+              ) : (
+                <Tag color="default" style={{ marginInlineEnd: 0 }}>缺失</Tag>
+              )}
+            </div>
+          </div>
         )
       },
     },
     {
-      title: '状态',
+      title: '账号状态',
       dataIndex: 'status',
       key: 'status',
-      width: 110,
-      render: (status: string) => <Tag color={STATUS_COLORS[status] || 'default'}>{status}</Tag>,
+      width: 180,
+      render: (status: string) => {
+        const meta = accountStatusMeta(status)
+        return (
+          <div style={{ ...cellStackStyle, ...compactPanelStyle, gap: 8 }}>
+            <Tag color={meta.color} style={{ marginInlineEnd: 0, width: 'fit-content' }}>{meta.label}</Tag>
+            <Text type="secondary" style={secondaryTextStyle}>{meta.note}</Text>
+          </div>
+        )
+      },
     },
   ]
 
   if (isChatgptPlatform) {
     columns.push(
       {
-        title: '本地状态',
+        title: '本地检查',
         key: 'chatgpt_local_state',
-        width: 220,
+        width: 250,
         render: (_: any, record: any) => {
           const auth = record.chatgptLocal?.auth || {}
           const subscription = record.chatgptLocal?.subscription || {}
@@ -1045,21 +1082,27 @@ export default function Accounts() {
                 <Tag color={planTag.color}>{planTag.label}</Tag>
                 <Tag color={codexMeta.color}>Codex {codexMeta.label}</Tag>
               </div>
+              <Text type="secondary" style={secondaryTextStyle}>
+                {shortenText(auth.message || codex.message || subscription.workspace_plan_type || '尚未检测')}
+              </Text>
             </div>
           )
         },
       },
       {
-        title: 'CLIProxyAPI',
+        title: '远端同步',
         key: 'cliproxy_sync',
-        width: 170,
+        width: 220,
         render: (_: any, record: any) => {
           const sync = record.cliproxySync || {}
           const meta = cliproxyStateMeta(sync)
 
           return (
             <div style={{ ...cellStackStyle, ...compactPanelStyle }}>
-              <Tag color={meta.color}>{meta.label}</Tag>
+              <Tag color={meta.color} style={{ marginInlineEnd: 0, width: 'fit-content' }}>{meta.label}</Tag>
+              <Text type="secondary" style={secondaryTextStyle}>
+                {shortenText(sync?.name || sync?.message || '尚未同步')}
+              </Text>
             </div>
           )
         },
@@ -1097,7 +1140,7 @@ export default function Accounts() {
       title: '注册时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      width: 132,
+      width: 140,
       render: (text: string) => {
         const formatted = formatCreatedAt(text)
         return (
@@ -1129,26 +1172,7 @@ export default function Accounts() {
     },
   )
 
-  const statusSyncMenuItems: MenuProps['items'] = [
-    {
-      key: `probe:${getStatusSyncScope()}`,
-      label:
-        getStatusSyncScope() === 'selected'
-          ? `同步所选本地状态 (${selectedRowKeys.length})`
-          : `同步当前筛选本地状态 (${total})`,
-      disabled: getStatusSyncScope() === 'selected' ? selectedRowKeys.length === 0 : total === 0,
-    },
-    {
-      key: `remote:${getStatusSyncScope()}`,
-      label:
-        getStatusSyncScope() === 'selected'
-          ? `同步所选 CLIProxyAPI 状态 (${selectedRowKeys.length})`
-          : `同步当前筛选 CLIProxyAPI 状态 (${total})`,
-      disabled: getStatusSyncScope() === 'selected' ? selectedRowKeys.length === 0 : total === 0,
-    },
-  ]
-
-  const activeCount = accounts.filter((account) => ['registered', 'trial', 'subscribed'].includes(account.status)).length
+  const availableCount = accounts.filter((account) => ['registered', 'trial', 'subscribed'].includes(account.status)).length
   const invalidCount = accounts.filter((account) => ['invalid', 'expired'].includes(account.status)).length
   const remoteIssueCount = accounts.filter((account) =>
     ['account_deactivated', 'access_token_invalidated', 'unauthorized'].includes(account.cliproxySync?.remote_state),
@@ -1156,119 +1180,130 @@ export default function Accounts() {
 
   return (
     <div className="page-shell">
-      <PageHero
-        title={`${PLATFORM_TITLES[currentPlatform] || 'ChatGPT'} 账号`}
-        description="围绕 ChatGPT 账号的导入、批量操作、状态同步和注册集中在这一页。"
-        meta={(
-          <>
-            <HeroChip>账号总数 {total}</HeroChip>
-            <HeroChip>已选 {selectedRowKeys.length}</HeroChip>
-          </>
-        )}
-        actions={(
-          <Button icon={<ReloadOutlined spin={loading} />} onClick={load} loading={loading}>
-            刷新
-          </Button>
-        )}
-      />
-
-      <div className="dashboard-metrics">
-        <StatTile label="账号总数" value={total} icon={<UserOutlined />} />
-        <StatTile label="可用状态" value={activeCount} icon={<SafetyOutlined />} tone="success" />
-        <StatTile label="失效状态" value={invalidCount} icon={<DeleteOutlined />} tone="danger" />
-        <StatTile label="远端异常" value={remoteIssueCount} icon={<SyncOutlined />} tone="warning" />
-      </div>
-
       <SurfacePanel
-        title="筛选与批量操作"
-        subtitle="把搜索、同步、回填和导入导出放在同一层，不再散在多个入口。"
+        title={(
+          <div className="accounts-summary">
+            <div className="accounts-summary__copy">
+              <div className="accounts-summary__title">账号库</div>
+              <div className="accounts-summary__desc">
+                这一页只做账号相关的事：查看、筛选、检查、补传和注册。顶部导航不再单独拆“任务”和“控制台”。
+              </div>
+            </div>
+            <div className="accounts-kpis">
+              <span className="accounts-kpi"><strong>{total}</strong> 总数</span>
+              <span className="accounts-kpi"><strong>{availableCount}</strong> 可用</span>
+              <span className="accounts-kpi"><strong>{pendingUploadCount}</strong> 待补传</span>
+              <span className="accounts-kpi"><strong>{selectedCount}</strong> 已选</span>
+            </div>
+          </div>
+        )}
         actions={(
           <Space wrap>
-            {selectedRowKeys.length > 0 ? <Text type="success">已选 {selectedRowKeys.length} 个</Text> : null}
-            <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>导入</Button>
-            <Button icon={<DownloadOutlined />} onClick={exportCsv} disabled={accounts.length === 0}>导出</Button>
-            <Button icon={<PlusOutlined />} onClick={() => setAddModalOpen(true)}>新增</Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setRegisterModalOpen(true)}>注册</Button>
+            <Button icon={<ReloadOutlined spin={loading} />} onClick={load} loading={loading}>
+              刷新列表
+            </Button>
+            <Button type="primary" icon={<RocketOutlined />} onClick={() => setRegisterModalOpen(true)}>
+              开始注册
+            </Button>
           </Space>
         )}
       >
-        <div className="data-toolbar">
-          <div className="data-toolbar__group">
-            <Input.Search
-              placeholder="搜索邮箱..."
-              allowClear
-              onSearch={setSearch}
-              style={{ width: 240 }}
-            />
-            <Select
-              placeholder="状态筛选"
-              allowClear
-              style={{ width: 150 }}
-              onChange={setFilterStatus}
-              options={[
-                { value: 'registered', label: '已注册' },
-                { value: 'trial', label: '试用中' },
-                { value: 'subscribed', label: '已订阅' },
-                { value: 'expired', label: '已过期' },
-                { value: 'invalid', label: '已失效' },
-              ]}
-            />
-            <Text type="secondary">{total} 个账号</Text>
+        <div className="accounts-ops">
+          <div className="accounts-toolbar">
+            <div className="accounts-toolbar__stack">
+              <div className="accounts-toolbar__title">筛选范围</div>
+              <div className="accounts-toolbar__hint">先缩小范围，再执行检查或补传。没有勾选账号时，默认作用于当前筛选结果。</div>
+              <div className="accounts-toolbar__filters">
+              <Input.Search
+                placeholder="搜索邮箱"
+                allowClear
+                onSearch={setSearch}
+                  style={{ width: 260 }}
+              />
+              <Select
+                placeholder="状态筛选"
+                allowClear
+                  style={{ width: 180 }}
+                onChange={setFilterStatus}
+                options={[
+                  { value: 'registered', label: '已注册' },
+                  { value: 'trial', label: '试用中' },
+                  { value: 'subscribed', label: '已订阅' },
+                  { value: 'expired', label: '已过期' },
+                  { value: 'invalid', label: '已失效' },
+                ]}
+              />
+                <Tag color="success">本地可用 {healthyLocalCount}</Tag>
+                <Tag color="warning">待补传 {pendingUploadCount}</Tag>
+                <Tag color="error">异常 {remoteIssueCount + invalidCount}</Tag>
+              </div>
+            </div>
+            <div className="accounts-toolbar__stack">
+              <div className="accounts-toolbar__title">导入与录入</div>
+              <div className="accounts-toolbar__hint">导入账号用于批量导入，手动录入用于已有账号，开始注册用于生成新账号。</div>
+              <div className="accounts-toolbar__actions">
+                <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>导入账号</Button>
+                <Button icon={<PlusOutlined />} onClick={() => setAddModalOpen(true)}>手动录入</Button>
+                <Button icon={<DownloadOutlined />} onClick={exportCsv} disabled={accounts.length === 0}>导出列表</Button>
+                {selectedCount > 0 && (
+                  <Popconfirm title={`确认删除选中的 ${selectedCount} 个账号？`} onConfirm={handleBatchDelete}>
+                    <Button danger icon={<DeleteOutlined />}>删除所选</Button>
+                  </Popconfirm>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="data-toolbar__group">
-            {currentPlatform === 'chatgpt' && (
-              <Dropdown
-                trigger={['click']}
-                menu={{
-                  items: statusSyncMenuItems,
-                  onClick: ({ key }) => {
-                    const [kind, scope] = String(key).split(':') as ['probe' | 'remote', 'selected' | 'all']
-                    handleBatchStatusSync(kind, scope)
-                  },
-                }}
+
+          <div className="accounts-toolbar__stack">
+            <div className="accounts-toolbar__title">检查与补传</div>
+            <div className="accounts-toolbar__hint">本地检查验证 token，远端检查同步 CLIProxyAPI 状态，补传只处理远端缺失项。</div>
+            <div className="accounts-toolbar__maintenance">
+              <Button
+                icon={<SafetyOutlined />}
+                loading={statusSyncLoading === 'probe_selected' || statusSyncLoading === 'probe_all'}
+                disabled={getStatusSyncScope() === 'selected' ? selectedCount === 0 : total === 0}
+                onClick={() => handleBatchStatusSync('probe', getStatusSyncScope())}
               >
-                <Button
-                  icon={<SyncOutlined />}
-                  loading={statusSyncLoading !== ''}
-                  disabled={total === 0}
-                >
-                  状态同步
-                </Button>
-              </Dropdown>
-            )}
-            {currentPlatform === 'chatgpt' && (
-              <Popconfirm
-                title={
-                  getBackfillScope() === 'selected'
-                    ? `确认补传所选 ${selectedRowKeys.length} 个账号中远端未发现的 auth-file？`
-                    : '确认补传当前筛选范围内远端未发现且本地状态有效的账号？'
-                }
-                onConfirm={() => handleCpaBackfill(getBackfillScope())}
+                {syncButtonLabel('probe')}
+              </Button>
+              <Button
+                icon={<SyncOutlined />}
+                loading={statusSyncLoading === 'remote_selected' || statusSyncLoading === 'remote_all'}
+                disabled={getStatusSyncScope() === 'selected' ? selectedCount === 0 : total === 0}
+                onClick={() => handleBatchStatusSync('remote', getStatusSyncScope())}
               >
-                <Button
-                  loading={cpaSyncLoading === 'pending' || cpaSyncLoading === 'selected'}
-                  icon={<UploadOutlined />}
-                  disabled={getBackfillScope() === 'selected' ? selectedRowKeys.length === 0 : total === 0}
+                {syncButtonLabel('remote')}
+              </Button>
+              {currentPlatform === 'chatgpt' && (
+                <Popconfirm
+                  title={
+                    getBackfillScope() === 'selected'
+                      ? `确认补传已选 ${selectedCount} 个账号里远端缺失的 auth-file？`
+                      : '确认补传当前筛选结果中远端缺失的 auth-file？'
+                  }
+                  onConfirm={() => handleCpaBackfill(getBackfillScope())}
                 >
-                  {backfillButtonLabel()}
-                </Button>
-              </Popconfirm>
-            )}
-            {selectedRowKeys.length > 0 && (
-              <Popconfirm title={`确认删除选中的 ${selectedRowKeys.length} 个账号？`} onConfirm={handleBatchDelete}>
-                <Button danger icon={<DeleteOutlined />}>删除 {selectedRowKeys.length} 个</Button>
-              </Popconfirm>
-            )}
+                  <Button
+                    loading={cpaSyncLoading === 'pending' || cpaSyncLoading === 'selected'}
+                    icon={<UploadOutlined />}
+                    disabled={getBackfillScope() === 'selected' ? selectedCount === 0 : total === 0}
+                  >
+                    {backfillButtonLabel()}
+                  </Button>
+                </Popconfirm>
+              )}
+            </div>
           </div>
         </div>
       </SurfacePanel>
 
       <SurfacePanel
         title="账号列表"
-        subtitle="双击任意一行可直接打开详情。"
-        className="page-table-shell"
+        subtitle="重点只保留邮箱、凭证、本地状态和远端状态。双击任意一行可直接打开详情。"
+        className="accounts-table-shell"
       >
         <Table
+          className="accounts-table"
           rowKey="id"
           columns={columns}
           dataSource={accounts}
@@ -1445,7 +1480,7 @@ export default function Accounts() {
                 {currentAccount.chatgptLocal && Object.keys(currentAccount.chatgptLocal).length > 0 ? (
                   <LocalProbeSummary probe={currentAccount.chatgptLocal} />
                 ) : (
-                  <Text type="secondary">尚未探测。可在操作菜单中点击“探测本地状态”。</Text>
+                  <Text type="secondary">还没检查过。可从行内菜单发起本地检查。</Text>
                 )}
               </DetailSection>
             ) : null}
