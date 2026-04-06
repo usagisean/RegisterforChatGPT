@@ -1,9 +1,9 @@
-import { Button, Space } from 'antd'
+import { Button } from 'antd'
 import { RocketOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 
 import { ActiveTaskMonitor } from '@/components/ActiveTaskMonitor'
-import { HeroChip, PageHero } from '@/components/PageHero'
+import { SurfacePanel } from '@/components/SurfacePanel'
 import { useUi } from '@/lib/ui'
 
 export default function ConsolePage() {
@@ -13,25 +13,28 @@ export default function ConsolePage() {
 
   return (
     <div className="page-shell">
-      <PageHero
-        title={isZh ? '实时控制台' : 'Live console'}
-        description={isZh ? '单独查看当前任务的实时状态和日志，不影响你继续操作其他页面。' : 'Track active jobs and logs in a dedicated view without blocking the rest of the app.'}
+      <SurfacePanel
+        className="dashboard-overview"
+        bodyClassName="dashboard-overview__body"
         actions={(
-          <Space>
-            <Button type="primary" icon={<RocketOutlined />} onClick={() => navigate('/register')}>
-              {isZh ? '新建任务' : 'New run'}
-            </Button>
-          </Space>
+          <Button type="primary" icon={<RocketOutlined />} onClick={() => navigate('/register')}>
+            {isZh ? '新建注册任务' : 'New registration job'}
+          </Button>
         )}
-        meta={(
-          <>
-            <HeroChip>{isZh ? '独立页面' : 'Dedicated page'}</HeroChip>
-            <HeroChip>{isZh ? '自动追踪' : 'Auto tracking'}</HeroChip>
-          </>
-        )}
-      />
+      >
+        <div className="dashboard-overview__head">
+          <div className="dashboard-overview__copy">
+            <div className="dashboard-overview__title">{isZh ? '控制台' : 'Console'}</div>
+            <div className="dashboard-overview__subtitle">
+              {isZh ? '实时查看线程、热力图和日志。' : 'Live threads, heatmap and logs.'}
+            </div>
+          </div>
+        </div>
+      </SurfacePanel>
 
-      <ActiveTaskMonitor showEmptyState />
+      <SurfacePanel>
+        <ActiveTaskMonitor showEmptyState />
+      </SurfacePanel>
     </div>
   )
 }

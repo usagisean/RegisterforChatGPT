@@ -11,6 +11,8 @@ import {
   MoonOutlined,
   LogoutOutlined,
   ThunderboltOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
 } from '@ant-design/icons'
 import zhCN from 'antd/locale/zh_CN'
 import enUS from 'antd/locale/en_US'
@@ -31,19 +33,19 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 const copy = {
   zh: {
     brand: 'zxai',
-    brandSub: 'ChatGPT 控制台',
+    brandSub: '运营后台',
     nav: {
-      dashboard: { label: '总览', hint: '状态与进度' },
-      accounts: { label: '账号', hint: '导入、注册、检查' },
-      history: { label: '历史', hint: '已执行任务' },
-      proxies: { label: '代理', hint: '网络与可用性' },
+      dashboard: { label: '总览', hint: '监控与进度' },
+      accounts: { label: '账号', hint: '筛选与操作' },
+      history: { label: '历史', hint: '执行记录' },
+      proxies: { label: '代理', hint: '连接管理' },
       settings: { label: '设置', hint: '服务与安全' },
     },
     page: {
-      dashboard: { label: '总览', hint: '先看状态，再决定下一步' },
-      accounts: { label: '账号', hint: '录入、注册、补传都在这一页完成' },
-      history: { label: '历史', hint: '回看任务与结果' },
-      proxies: { label: '代理', hint: '导入、检测和管理代理' },
+      dashboard: { label: '总览', hint: '系统概览' },
+      accounts: { label: '账号', hint: '筛选、注册、补传' },
+      history: { label: '历史', hint: '任务与结果' },
+      proxies: { label: '代理', hint: '导入、检测、维护' },
       settings: { label: '设置', hint: '连接外部服务并保护入口' },
       console: { label: '控制台', hint: '实时监控正在执行的任务' },
     },
@@ -51,24 +53,24 @@ const copy = {
       dark: '夜间',
       light: '日间',
       logout: '退出',
-      mobileTitle: '控制台',
+      mobileTitle: 'zxai',
     },
   },
   en: {
     brand: 'zxai',
-    brandSub: 'ChatGPT Console',
+    brandSub: 'Operations',
     nav: {
-      dashboard: { label: 'Overview', hint: 'status & progress' },
-      accounts: { label: 'Accounts', hint: 'import, register, verify' },
-      history: { label: 'History', hint: 'completed jobs' },
-      proxies: { label: 'Proxies', hint: 'network & health' },
+      dashboard: { label: 'Overview', hint: 'monitoring & progress' },
+      accounts: { label: 'Accounts', hint: 'filter & actions' },
+      history: { label: 'History', hint: 'execution logs' },
+      proxies: { label: 'Proxies', hint: 'connectivity' },
       settings: { label: 'Settings', hint: 'services & security' },
     },
     page: {
-      dashboard: { label: 'Overview', hint: 'start with signals, then take action' },
-      accounts: { label: 'Accounts', hint: 'import, register and backfill in one place' },
-      history: { label: 'History', hint: 'review past jobs and outcomes' },
-      proxies: { label: 'Proxies', hint: 'import, test and maintain proxies' },
+      dashboard: { label: 'Overview', hint: 'system overview' },
+      accounts: { label: 'Accounts', hint: 'filter, register, backfill' },
+      history: { label: 'History', hint: 'jobs & results' },
+      proxies: { label: 'Proxies', hint: 'import, test, maintain' },
       settings: { label: 'Settings', hint: 'connect services and secure access' },
       console: { label: 'Console', hint: 'live monitoring for active jobs' },
     },
@@ -76,7 +78,7 @@ const copy = {
       dark: 'Dark',
       light: 'Light',
       logout: 'Logout',
-      mobileTitle: 'Console',
+      mobileTitle: 'zxai',
     },
   },
 } as const
@@ -112,6 +114,7 @@ function ProtectedLayout() {
 function AppContent() {
   const { themeMode, setThemeMode, language, setLanguage } = useUi()
   const [hasPassword, setHasPassword] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('zxai-sidebar-collapsed') === '1')
   const location = useLocation()
   const navigate = useNavigate()
   const isMobile = useIsMobile()
@@ -121,6 +124,10 @@ function AppContent() {
   useEffect(() => {
     fetch('/api/auth/status').then((r) => r.json()).then((s) => setHasPassword(s.has_password)).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    localStorage.setItem('zxai-sidebar-collapsed', sidebarCollapsed ? '1' : '0')
+  }, [sidebarCollapsed])
 
   const handleLogout = async () => {
     try {
@@ -175,7 +182,7 @@ function AppContent() {
     })
 
   return (
-    <div className="shell">
+    <div className={`shell${sidebarCollapsed ? ' shell--collapsed' : ''}`}>
       {!isMobile ? (
         <aside className="shell-sidebar">
           <div className="shell-brand">
@@ -190,6 +197,16 @@ function AppContent() {
           <nav className="shell-nav">
             <div className="shell-nav__list">{renderNavItems()}</div>
           </nav>
+          <div className="shell-sidebar__footer">
+            <Button
+              type="text"
+              className="shell-sidebar__toggle"
+              icon={sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => setSidebarCollapsed((value) => !value)}
+            >
+              {sidebarCollapsed ? (language === 'zh' ? '展开' : 'Expand') : (language === 'zh' ? '折叠' : 'Collapse')}
+            </Button>
+          </div>
         </aside>
       ) : null}
 

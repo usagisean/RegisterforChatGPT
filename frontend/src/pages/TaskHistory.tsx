@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Table, Select, Button, Tag, Space, Popconfirm, Typography, message } from 'antd'
+import { Table, Select, Button, Tag, Space, Popconfirm, message } from 'antd'
 import type { TableColumnsType } from 'antd'
-import { ReloadOutlined, DeleteOutlined } from '@ant-design/icons'
-import { HeroChip, PageHero } from '@/components/PageHero'
+import { ReloadOutlined, DeleteOutlined, HistoryOutlined } from '@ant-design/icons'
+
 import { StatTile } from '@/components/StatTile'
 import { SurfacePanel } from '@/components/SurfacePanel'
+import { useUi } from '@/lib/ui'
 import { apiFetch } from '@/lib/utils'
-
-const { Text } = Typography
 
 interface TaskLogItem {
   id: number
@@ -29,7 +28,60 @@ interface TaskLogBatchDeleteResponse {
   total_requested: number
 }
 
+const copy = {
+  zh: {
+    title: '历史',
+    subtitle: '任务结果与失败原因',
+    refresh: '刷新',
+    records: '记录数',
+    success: '成功',
+    failed: '失败',
+    all: '全部任务',
+    tableTitle: '执行历史',
+    tableDesc: '保留最近任务结果，支持筛选和批量删除。',
+    selected: '已选',
+    deleteSelected: '删除所选',
+    columns: {
+      time: '时间',
+      platform: '平台',
+      email: '邮箱',
+      status: '状态',
+      error: '错误信息',
+    },
+    status: {
+      success: '成功',
+      failed: '失败',
+    },
+  },
+  en: {
+    title: 'History',
+    subtitle: 'job results and failure reasons',
+    refresh: 'Refresh',
+    records: 'Records',
+    success: 'Success',
+    failed: 'Failed',
+    all: 'All jobs',
+    tableTitle: 'Execution history',
+    tableDesc: 'Recent jobs, filters and batch deletion.',
+    selected: 'Selected',
+    deleteSelected: 'Delete selected',
+    columns: {
+      time: 'Time',
+      platform: 'Platform',
+      email: 'Email',
+      status: 'Status',
+      error: 'Error',
+    },
+    status: {
+      success: 'Success',
+      failed: 'Failed',
+    },
+  },
+} as const
+
 export default function TaskHistory() {
+  const { language } = useUi()
+  const t = copy[language]
   const [logs, setLogs] = useState<TaskLogItem[]>([])
   const [total, setTotal] = useState(0)
   const [platform, setPlatform] = useState('')
@@ -62,9 +114,9 @@ export default function TaskHistory() {
       body: JSON.stringify({ ids: selectedRowKeys }),
     }) as TaskLogBatchDeleteResponse
 
-    message.success(`已删除 ${result.deleted} 条任务历史`)
+    message.success(`${t.deleteSelected} ${result.deleted}`)
     if (result.not_found.length > 0) {
-      message.warning(`${result.not_found.length} 条记录不存在或已被删除`)
+      message.warning(`${result.not_found.length} missing`)
     }
     setSelectedRowKeys([])
     await load()
@@ -72,38 +124,38 @@ export default function TaskHistory() {
 
   const columns: TableColumnsType<TaskLogItem> = [
     {
-      title: '时间',
+      title: t.columns.time,
       dataIndex: 'created_at',
       key: 'created_at',
       width: 180,
-      render: (text: string) => (text ? new Date(text).toLocaleString('zh-CN') : '-'),
+      render: (text: string) => (text ? new Date(text).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US') : '-'),
     },
     {
-      title: '平台',
+      title: t.columns.platform,
       dataIndex: 'platform',
       key: 'platform',
-      width: 100,
+      width: 120,
       render: (text: string) => <Tag>{text}</Tag>,
     },
     {
-      title: '邮箱',
+      title: t.columns.email,
       dataIndex: 'email',
       key: 'email',
       render: (text: string) => <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{text}</span>,
     },
     {
-      title: '状态',
+      title: t.columns.status,
       dataIndex: 'status',
       key: 'status',
-      width: 80,
+      width: 90,
       render: (status: string) => (
         <Tag color={status === 'success' ? 'success' : 'error'}>
-          {status === 'success' ? '成功' : '失败'}
+          {status === 'success' ? t.status.success : t.status.failed}
         </Tag>
       ),
     },
     {
-      title: '错误信息',
+      title: t.columns.error,
       dataIndex: 'error',
       key: 'error',
       render: (text: string) => text || '-',
@@ -115,55 +167,36 @@ export default function TaskHistory() {
 
   return (
     <div className="page-shell">
-      <PageHero
-        title="任务"
-        description="查看执行记录和失败原因。"
+      <SurfacePanel
+        className="dashboard-overview"
+        bodyClassName="dashboard-overview__body"
         actions={(
-          <Space>
-            <Text type="secondary">{total} 条记录</Text>
-            {selectedRowKeys.length > 0 && <Text type="success">已选 {selectedRowKeys.length} 条</Text>}
-            {selectedRowKeys.length > 0 && (
-              <Popconfirm
-                title={`确认删除选中的 ${selectedRowKeys.length} 条任务历史？`}
-                onConfirm={handleBatchDelete}
-              >
-                <Button danger icon={<DeleteOutlined />}>
-                  删除 {selectedRowKeys.length} 条
-                </Button>
-              </Popconfirm>
-            )}
-            <Select
-              value={platform}
-              onChange={(value) => {
-                setPlatform(value)
-                setSelectedRowKeys([])
-              }}
-              style={{ width: 140 }}
-              options={[
-                { value: '', label: '全部任务' },
-                { value: 'chatgpt', label: 'ChatGPT' },
-              ]}
-            />
-            <Button icon={<ReloadOutlined spin={loading} />} onClick={load} loading={loading} />
-          </Space>
+          <Button icon={<ReloadOutlined spin={loading} />} onClick={load} loading={loading}>
+            {t.refresh}
+          </Button>
         )}
-        meta={(
-          <>
-            <HeroChip>历史记录 {total}</HeroChip>
-            <HeroChip>已选 {selectedRowKeys.length}</HeroChip>
-          </>
-        )}
-      />
+      >
+        <div className="dashboard-overview__head">
+          <div className="dashboard-overview__copy">
+            <div className="dashboard-overview__title">{t.title}</div>
+            <div className="dashboard-overview__subtitle">{t.subtitle}</div>
+          </div>
+          <div className="dashboard-overview__meta">
+            <span>{t.records} {total}</span>
+            <span>{t.selected} {selectedRowKeys.length}</span>
+          </div>
+        </div>
 
-      <div className="dashboard-metrics dashboard-metrics--three">
-        <StatTile label="最近记录" value={logs.length} tone="default" />
-        <StatTile label="成功" value={successCount} tone="success" />
-        <StatTile label="失败" value={failedCount} tone="danger" />
-      </div>
+        <div className="dashboard-metrics dashboard-metrics--three">
+          <StatTile label={t.records} value={logs.length} icon={<HistoryOutlined />} />
+          <StatTile label={t.success} value={successCount} tone="success" />
+          <StatTile label={t.failed} value={failedCount} tone="danger" />
+        </div>
+      </SurfacePanel>
 
       <SurfacePanel
-        title="执行历史"
-        subtitle="保留最近任务结果，支持按平台筛选和批量删除。"
+        title={t.tableTitle}
+        subtitle={t.tableDesc}
         actions={(
           <Space wrap>
             <Select
@@ -172,15 +205,19 @@ export default function TaskHistory() {
                 setPlatform(value)
                 setSelectedRowKeys([])
               }}
-              style={{ width: 140 }}
+              style={{ width: 160 }}
               options={[
-                { value: '', label: '全部任务' },
+                { value: '', label: t.all },
                 { value: 'chatgpt', label: 'ChatGPT' },
               ]}
             />
-            <Button icon={<ReloadOutlined spin={loading} />} onClick={load} loading={loading}>
-              刷新
-            </Button>
+            {selectedRowKeys.length > 0 && (
+              <Popconfirm title={`${t.deleteSelected} ${selectedRowKeys.length} ?`} onConfirm={handleBatchDelete}>
+                <Button danger icon={<DeleteOutlined />}>
+                  {t.deleteSelected} {selectedRowKeys.length}
+                </Button>
+              </Popconfirm>
+            )}
           </Space>
         )}
         className="page-table-shell"

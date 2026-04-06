@@ -59,20 +59,14 @@ const PLATFORM_TITLES: Record<string, string> = {
 
 const copy = {
   zh: {
-    pageTitle: 'ChatGPT 账号',
-    pageDesc: '先导入已有账号或发起注册，再做本地检测，最后把远端缺失的凭证补上。整条流程都在这一页完成。',
+    pageTitle: '账号',
+    pageDesc: '筛选、注册、检测、补传都在这里完成。',
     total: '总数',
     available: '可用',
     pending: '待补传',
     selected: '已选',
     refresh: '刷新',
-    start: '发起注册',
-    filterTitle: '1. 选择范围',
-    filterHint: '先搜索或筛选出你关心的账号，再执行检查、补传或删除。',
-    importTitle: '2. 录入或注册',
-    importHint: '批量导入用于外部账号，录入已有账号用于手工保存，发起注册用于生成新账号。',
-    maintenanceTitle: '3. 检查与补传',
-    maintenanceHint: '先做本地检测，再看远端同步状态，最后只补传远端缺失的凭证。',
+    start: '新建注册任务',
     search: '搜索邮箱',
     statusFilter: '状态筛选',
     import: '批量导入',
@@ -82,8 +76,12 @@ const copy = {
     checkLocal: '本地检测',
     checkRemote: '远端同步',
     backfill: '补传到远端',
-    listTitle: '账号清单',
-    listDesc: '桌面显示详细表格，手机端自动切成一列卡片，直接点开就能看详情。',
+    healthyLocal: '本地可用',
+    pendingLabel: '待补传',
+    issues: '异常',
+    accountUnit: '个账号',
+    listTitle: '账号列表',
+    listDesc: '双击桌面行或点手机卡片即可查看详情。',
     email: '邮箱',
     credentials: '登录资料',
     accountState: '当前状态',
@@ -97,20 +95,14 @@ const copy = {
     missing: '缺少',
   },
   en: {
-    pageTitle: 'ChatGPT accounts',
-    pageDesc: 'Import existing accounts or start registration first, then run local checks and backfill missing remote auth files from the same page.',
+    pageTitle: 'Accounts',
+    pageDesc: 'Filter, register, verify and backfill from one workspace.',
     total: 'Total',
     available: 'Healthy',
     pending: 'Pending',
     selected: 'Selected',
     refresh: 'Refresh',
-    start: 'Start registration',
-    filterTitle: '1. Pick a scope',
-    filterHint: 'Search or filter the accounts you care about before running checks, backfill or deletion.',
-    importTitle: '2. Add or create',
-    importHint: 'Batch import is for existing inventories, manual add stores known accounts, start registration creates new ones.',
-    maintenanceTitle: '3. Verify and backfill',
-    maintenanceHint: 'Run local checks first, review remote sync status next, then only backfill files that are missing remotely.',
+    start: 'New registration job',
     search: 'Search email',
     statusFilter: 'Status',
     import: 'Batch import',
@@ -120,8 +112,12 @@ const copy = {
     checkLocal: 'Local verify',
     checkRemote: 'Remote sync',
     backfill: 'Backfill remote',
+    healthyLocal: 'Healthy local',
+    pendingLabel: 'Pending upload',
+    issues: 'Issues',
+    accountUnit: 'accounts',
     listTitle: 'Account list',
-    listDesc: 'Desktop keeps a dense table. Mobile switches to a single-column card list automatically.',
+    listDesc: 'Double-click a desktop row or tap a mobile card to inspect it.',
     email: 'Email',
     credentials: 'Login data',
     accountState: 'Current state',
@@ -204,7 +200,7 @@ function authStateMeta(state?: string) {
     case 'probe_failed':
       return { color: 'warning', label: '检测失败' }
     default:
-      return { color: 'default', label: '未做检查' }
+      return { color: 'default', label: '待检测' }
   }
 }
 
@@ -223,11 +219,11 @@ function codexStateMeta(state?: string) {
     case 'quota_exhausted':
       return { color: 'warning', label: '额度耗尽' }
     case 'skipped_auth_invalid':
-      return { color: 'default', label: '未做检查' }
+      return { color: 'default', label: '待检测' }
     case 'probe_failed':
       return { color: 'warning', label: '检测失败' }
     default:
-      return { color: 'default', label: '未做检查' }
+      return { color: 'default', label: '待检测' }
   }
 }
 
@@ -590,6 +586,21 @@ export default function Accounts() {
   const { language } = useUi()
   const isMobile = useIsMobile()
   const ui = copy[language]
+  const statusOptions = language === 'zh'
+    ? [
+        { value: 'registered', label: '已注册' },
+        { value: 'trial', label: '试用中' },
+        { value: 'subscribed', label: '已订阅' },
+        { value: 'expired', label: '已过期' },
+        { value: 'invalid', label: '已失效' },
+      ]
+    : [
+        { value: 'registered', label: 'Registered' },
+        { value: 'trial', label: 'Trial' },
+        { value: 'subscribed', label: 'Subscribed' },
+        { value: 'expired', label: 'Expired' },
+        { value: 'invalid', label: 'Invalid' },
+      ]
   const [currentPlatform, setCurrentPlatform] = useState(platform === 'chatgpt' ? 'chatgpt' : 'chatgpt')
   const [accounts, setAccounts] = useState<any[]>([])
   const [platformActions, setPlatformActions] = useState<any[]>([])
@@ -1250,20 +1261,8 @@ export default function Accounts() {
   return (
     <div className="page-shell">
       <SurfacePanel
-        title={(
-          <div className="accounts-summary">
-            <div className="accounts-summary__copy">
-              <div className="accounts-summary__title">{ui.pageTitle}</div>
-              <div className="accounts-summary__desc">{ui.pageDesc}</div>
-            </div>
-            <div className="accounts-kpis">
-              <span className="accounts-kpi"><strong>{total}</strong> {ui.total}</span>
-              <span className="accounts-kpi"><strong>{availableCount}</strong> {ui.available}</span>
-              <span className="accounts-kpi"><strong>{pendingUploadCount}</strong> {ui.pending}</span>
-              <span className="accounts-kpi"><strong>{selectedCount}</strong> {ui.selected}</span>
-            </div>
-          </div>
-        )}
+        className="accounts-workbench"
+        bodyClassName="accounts-workbench__body"
         actions={(
           <Space wrap>
             <Button icon={<ReloadOutlined spin={loading} />} onClick={load} loading={loading}>
@@ -1275,56 +1274,50 @@ export default function Accounts() {
           </Space>
         )}
       >
-        <div className="accounts-ops">
-          <div className="accounts-toolbar">
-            <div className="accounts-toolbar__stack">
-              <div className="accounts-toolbar__title">{ui.filterTitle}</div>
-              <div className="accounts-toolbar__hint">{ui.filterHint}</div>
-              <div className="accounts-toolbar__filters">
-              <Input.Search
-                placeholder={ui.search}
-                allowClear
-                onSearch={setSearch}
-                  style={{ width: 260 }}
-              />
-              <Select
-                placeholder={ui.statusFilter}
-                allowClear
-                  style={{ width: 180 }}
-                onChange={setFilterStatus}
-                options={[
-                  { value: 'registered', label: '已注册' },
-                  { value: 'trial', label: '试用中' },
-                  { value: 'subscribed', label: '已订阅' },
-                  { value: 'expired', label: '已过期' },
-                  { value: 'invalid', label: '已失效' },
-                ]}
-              />
-                <Tag color="success">本地可用 {healthyLocalCount}</Tag>
-                <Tag color="warning">待补传 {pendingUploadCount}</Tag>
-                <Tag color="error">异常 {remoteIssueCount + invalidCount}</Tag>
-              </div>
-            </div>
-            <div className="accounts-toolbar__stack">
-              <div className="accounts-toolbar__title">{ui.importTitle}</div>
-              <div className="accounts-toolbar__hint">{ui.importHint}</div>
-              <div className="accounts-toolbar__actions">
-                <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>{ui.import}</Button>
-                <Button icon={<PlusOutlined />} onClick={() => setAddModalOpen(true)}>{ui.manualAdd}</Button>
-                <Button icon={<DownloadOutlined />} onClick={exportCsv} disabled={accounts.length === 0}>{ui.export}</Button>
-                {selectedCount > 0 && (
-                  <Popconfirm title={`确认删除选中的 ${selectedCount} 个账号？`} onConfirm={handleBatchDelete}>
-                    <Button danger icon={<DeleteOutlined />}>{ui.deleteSelected}</Button>
-                  </Popconfirm>
-                )}
-              </div>
-            </div>
+        <div className="accounts-workbench__header">
+          <div className="accounts-workbench__copy">
+            <div className="accounts-workbench__title">{ui.pageTitle}</div>
+            <div className="accounts-workbench__desc">{ui.pageDesc}</div>
+          </div>
+          <div className="accounts-kpis">
+            <span className="accounts-kpi"><strong>{total}</strong> {ui.total}</span>
+            <span className="accounts-kpi"><strong>{availableCount}</strong> {ui.available}</span>
+            <span className="accounts-kpi"><strong>{pendingUploadCount}</strong> {ui.pending}</span>
+            <span className="accounts-kpi"><strong>{selectedCount}</strong> {ui.selected}</span>
+          </div>
+        </div>
+
+        <div className="accounts-tools">
+          <div className="accounts-tools__row">
+            <Input.Search
+              className="accounts-tools__search"
+              placeholder={ui.search}
+              allowClear
+              onSearch={setSearch}
+              style={{ width: 280 }}
+            />
+            <Select
+              className="accounts-tools__select"
+              placeholder={ui.statusFilter}
+              allowClear
+              style={{ width: 180 }}
+              onChange={setFilterStatus}
+              options={statusOptions}
+            />
+            <span className="accounts-tools__count">{total} {ui.accountUnit}</span>
+            <Tag color="success">{ui.healthyLocal} {healthyLocalCount}</Tag>
+            <Tag color="warning">{ui.pendingLabel} {pendingUploadCount}</Tag>
+            <Tag color="error">{ui.issues} {remoteIssueCount + invalidCount}</Tag>
           </div>
 
-          <div className="accounts-toolbar__stack">
-            <div className="accounts-toolbar__title">{ui.maintenanceTitle}</div>
-            <div className="accounts-toolbar__hint">{ui.maintenanceHint}</div>
-            <div className="accounts-toolbar__maintenance">
+          <div className="accounts-tools__row accounts-tools__row--actions">
+            <div className="accounts-tools__group">
+              <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>{ui.import}</Button>
+              <Button icon={<PlusOutlined />} onClick={() => setAddModalOpen(true)}>{ui.manualAdd}</Button>
+              <Button icon={<DownloadOutlined />} onClick={exportCsv} disabled={accounts.length === 0}>{ui.export}</Button>
+            </div>
+
+            <div className="accounts-tools__group">
               <Button
                 icon={<SafetyOutlined />}
                 loading={statusSyncLoading === 'probe_selected' || statusSyncLoading === 'probe_all'}
@@ -1357,6 +1350,11 @@ export default function Accounts() {
                   >
                     {ui.backfill} {getBackfillScope() === 'selected' ? `(${selectedCount})` : `(${total})`}
                   </Button>
+                </Popconfirm>
+              )}
+              {selectedCount > 0 && (
+                <Popconfirm title={`确认删除选中的 ${selectedCount} 个账号？`} onConfirm={handleBatchDelete}>
+                  <Button danger icon={<DeleteOutlined />}>{ui.deleteSelected}</Button>
                 </Popconfirm>
               )}
             </div>
@@ -1493,15 +1491,9 @@ export default function Accounts() {
           <Form.Item name="cashier_url" label="试用链接">
             <Input />
           </Form.Item>
-          <Form.Item name="status" label="状态" initialValue="registered">
-            <Select
-              options={[
-                { value: 'registered', label: '已注册' },
-                { value: 'trial', label: '试用中' },
-                { value: 'subscribed', label: '已订阅' },
-              ]}
-            />
-          </Form.Item>
+              <Form.Item name="status" label="状态" initialValue="registered">
+            <Select options={statusOptions.filter((item) => ['registered', 'trial', 'subscribed'].includes(item.value))} />
+              </Form.Item>
         </Form>
       </Modal>
 
@@ -1537,15 +1529,7 @@ export default function Accounts() {
           <>
             <Form form={detailForm} layout="vertical" initialValues={currentAccount}>
               <Form.Item name="status" label="状态">
-                <Select
-                  options={[
-                    { value: 'registered', label: '已注册' },
-                    { value: 'trial', label: '试用中' },
-                    { value: 'subscribed', label: '已订阅' },
-                    { value: 'expired', label: '已过期' },
-                    { value: 'invalid', label: '已失效' },
-                  ]}
-                />
+                <Select options={statusOptions} />
               </Form.Item>
               <Form.Item name="token" label="Access Token">
                 <Input.TextArea rows={2} style={{ fontFamily: 'monospace' }} />
