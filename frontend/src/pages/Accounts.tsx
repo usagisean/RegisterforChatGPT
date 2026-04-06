@@ -34,26 +34,107 @@ import {
 import { ChatGPTRegistrationModeSwitch } from '@/components/ChatGPTRegistrationModeSwitch'
 import { SurfacePanel } from '@/components/SurfacePanel'
 import { TaskLogPanel } from '@/components/TaskLogPanel'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { usePersistentChatGPTRegistrationMode } from '@/hooks/usePersistentChatGPTRegistrationMode'
 import { parseBooleanConfigValue } from '@/lib/configValueParsers'
 import { buildChatGPTRegistrationRequestAdapter } from '@/lib/chatgptRegistrationRequestAdapter'
 import { setTrackedTask } from '@/lib/taskTracker'
+import { useUi } from '@/lib/ui'
 import { apiFetch } from '@/lib/utils'
 import { normalizeExecutorForPlatform } from '@/lib/platformExecutorOptions'
 
 const { Text } = Typography
 
 const ACCOUNT_STATUS_META: Record<string, { color: string; label: string; note: string }> = {
-  registered: { color: 'default', label: '已注册', note: '已拿到基础凭证' },
-  trial: { color: 'success', label: '试用中', note: '当前账号状态正常' },
-  subscribed: { color: 'success', label: '已订阅', note: '存在有效订阅' },
+  registered: { color: 'default', label: '已注册', note: '注册已完成，等待后续检查' },
+  trial: { color: 'success', label: '可用', note: '当前账号状态正常' },
+  subscribed: { color: 'success', label: '已订阅', note: '检测到有效订阅' },
   expired: { color: 'warning', label: '已过期', note: '订阅或可用期已结束' },
-  invalid: { color: 'error', label: '已失效', note: '本地或远端凭证无效' },
+  invalid: { color: 'error', label: '不可用', note: '本地或远端凭证失效' },
 }
 
 const PLATFORM_TITLES: Record<string, string> = {
   chatgpt: 'ChatGPT',
 }
+
+const copy = {
+  zh: {
+    pageTitle: 'ChatGPT 账号',
+    pageDesc: '先导入已有账号或发起注册，再做本地检测，最后把远端缺失的凭证补上。整条流程都在这一页完成。',
+    total: '总数',
+    available: '可用',
+    pending: '待补传',
+    selected: '已选',
+    refresh: '刷新',
+    start: '发起注册',
+    filterTitle: '1. 选择范围',
+    filterHint: '先搜索或筛选出你关心的账号，再执行检查、补传或删除。',
+    importTitle: '2. 录入或注册',
+    importHint: '批量导入用于外部账号，录入已有账号用于手工保存，发起注册用于生成新账号。',
+    maintenanceTitle: '3. 检查与补传',
+    maintenanceHint: '先做本地检测，再看远端同步状态，最后只补传远端缺失的凭证。',
+    search: '搜索邮箱',
+    statusFilter: '状态筛选',
+    import: '批量导入',
+    manualAdd: '录入已有账号',
+    export: '导出',
+    deleteSelected: '删除所选',
+    checkLocal: '本地检测',
+    checkRemote: '远端同步',
+    backfill: '补传到远端',
+    listTitle: '账号清单',
+    listDesc: '桌面显示详细表格，手机端自动切成一列卡片，直接点开就能看详情。',
+    email: '邮箱',
+    credentials: '登录资料',
+    accountState: '当前状态',
+    localCheck: '本地结果',
+    remoteSync: '远端结果',
+    createdAt: '注册时间',
+    actions: '操作',
+    details: '详情',
+    delete: '删除',
+    saved: '已存',
+    missing: '缺少',
+  },
+  en: {
+    pageTitle: 'ChatGPT accounts',
+    pageDesc: 'Import existing accounts or start registration first, then run local checks and backfill missing remote auth files from the same page.',
+    total: 'Total',
+    available: 'Healthy',
+    pending: 'Pending',
+    selected: 'Selected',
+    refresh: 'Refresh',
+    start: 'Start registration',
+    filterTitle: '1. Pick a scope',
+    filterHint: 'Search or filter the accounts you care about before running checks, backfill or deletion.',
+    importTitle: '2. Add or create',
+    importHint: 'Batch import is for existing inventories, manual add stores known accounts, start registration creates new ones.',
+    maintenanceTitle: '3. Verify and backfill',
+    maintenanceHint: 'Run local checks first, review remote sync status next, then only backfill files that are missing remotely.',
+    search: 'Search email',
+    statusFilter: 'Status',
+    import: 'Batch import',
+    manualAdd: 'Add existing',
+    export: 'Export',
+    deleteSelected: 'Delete selected',
+    checkLocal: 'Local verify',
+    checkRemote: 'Remote sync',
+    backfill: 'Backfill remote',
+    listTitle: 'Account list',
+    listDesc: 'Desktop keeps a dense table. Mobile switches to a single-column card list automatically.',
+    email: 'Email',
+    credentials: 'Login data',
+    accountState: 'Current state',
+    localCheck: 'Local result',
+    remoteSync: 'Remote result',
+    createdAt: 'Created',
+    actions: 'Actions',
+    details: 'Details',
+    delete: 'Delete',
+    saved: 'Saved',
+    missing: 'Missing',
+  },
+} as const
 
 function parseExtraJson(raw: string | undefined) {
   if (!raw) return {}
@@ -101,8 +182,8 @@ function shortenText(value?: string, fallback = '-', maxLength = 42) {
 function accountStatusMeta(status?: string) {
   return ACCOUNT_STATUS_META[String(status || '').trim().toLowerCase()] || {
     color: 'default',
-    label: status || '未归类',
-    note: '状态值未归档',
+    label: status || '未识别',
+    note: '当前状态没有被归到常用分类',
   }
 }
 
@@ -121,9 +202,9 @@ function authStateMeta(state?: string) {
     case 'banned_like':
       return { color: 'error', label: '疑似封禁' }
     case 'probe_failed':
-      return { color: 'warning', label: '探测失败' }
+      return { color: 'warning', label: '检测失败' }
     default:
-      return { color: 'default', label: '未检查' }
+      return { color: 'default', label: '未做检查' }
   }
 }
 
@@ -142,11 +223,11 @@ function codexStateMeta(state?: string) {
     case 'quota_exhausted':
       return { color: 'warning', label: '额度耗尽' }
     case 'skipped_auth_invalid':
-      return { color: 'default', label: '未检查' }
+      return { color: 'default', label: '未做检查' }
     case 'probe_failed':
-      return { color: 'warning', label: '探测失败' }
+      return { color: 'warning', label: '检测失败' }
     default:
-      return { color: 'default', label: '未检查' }
+      return { color: 'default', label: '未做检查' }
   }
 }
 
@@ -163,7 +244,7 @@ function planMeta(plan?: string) {
     case 'free':
       return { color: 'default', label: 'Free' }
     default:
-      return { color: 'default', label: '未返回' }
+      return { color: 'default', label: '无套餐信息' }
   }
 }
 
@@ -280,7 +361,7 @@ function LocalProbeSummary({ probe }: { probe: any }) {
 
 function cliproxyStateMeta(sync: any) {
   if (!sync || Object.keys(sync).length === 0) {
-    return { color: 'default', label: '未检查' }
+    return { color: 'default', label: '尚未同步' }
   }
   if (sync.remote_state === 'unreachable') {
     return { color: 'error', label: '不可连接' }
@@ -324,7 +405,7 @@ function cliproxyStateMeta(sync: any) {
   if (sync.status === 'disabled') {
     return { color: 'default', label: '远端禁用' }
   }
-  return { color: 'default', label: '未检查' }
+  return { color: 'default', label: '尚未同步' }
 }
 
 function CliproxySyncSummary({ sync }: { sync: any }) {
@@ -506,6 +587,9 @@ function ActionMenu({ acc, onRefresh, actions }: { acc: any; onRefresh: () => vo
 export default function Accounts() {
   const { platform } = useParams<{ platform: string }>()
   const { token } = theme.useToken()
+  const { language } = useUi()
+  const isMobile = useIsMobile()
+  const ui = copy[language]
   const [currentPlatform, setCurrentPlatform] = useState(platform === 'chatgpt' ? 'chatgpt' : 'chatgpt')
   const [accounts, setAccounts] = useState<any[]>([])
   const [platformActions, setPlatformActions] = useState<any[]>([])
@@ -937,21 +1021,6 @@ export default function Accounts() {
 
   const getBackfillScope = (): 'selected' | 'pending' => (selectedRowKeys.length > 0 ? 'selected' : 'pending')
 
-  const backfillButtonLabel = () => {
-    const scope = getBackfillScope()
-    const count = scope === 'selected' ? selectedRowKeys.length : total
-    return scope === 'selected' ? `补传缺失凭证（已选 ${count}）` : `补传缺失凭证（${count}）`
-  }
-
-  const syncButtonLabel = (kind: 'probe' | 'remote') => {
-    const scope = getStatusSyncScope()
-    const count = scope === 'selected' ? selectedRowKeys.length : total
-    if (kind === 'probe') {
-      return scope === 'selected' ? `检查本地状态（已选 ${count}）` : `检查本地状态（${count}）`
-    }
-    return scope === 'selected' ? `检查远端状态（已选 ${count}）` : `检查远端状态（${count}）`
-  }
-
   const isChatgptPlatform = currentPlatform === 'chatgpt'
   const monospaceStyle: React.CSSProperties = {
     fontFamily: 'SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
@@ -989,7 +1058,7 @@ export default function Accounts() {
 
   const columns: any[] = [
     {
-      title: '邮箱',
+      title: ui.email,
       dataIndex: 'email',
       key: 'email',
       width: 260,
@@ -1011,7 +1080,7 @@ export default function Accounts() {
       ),
     },
     {
-      title: '凭证',
+      title: ui.credentials,
       key: 'credential',
       width: 220,
       render: (_: any, record: any) => {
@@ -1024,7 +1093,7 @@ export default function Accounts() {
               <Text type="secondary" style={secondaryTextStyle}>密码</Text>
               <Space size={4}>
                 <Text style={{ ...secretPreviewStyle, maxWidth: 96 }} title={password}>
-                  {password || '未保存'}
+                  {password || ui.missing}
                 </Text>
                 {password ? <Button type="text" size="small" icon={<CopyOutlined />} onClick={() => copyText(password)} /> : null}
               </Space>
@@ -1033,11 +1102,11 @@ export default function Accounts() {
               <Text type="secondary" style={secondaryTextStyle}>Refresh Token</Text>
               {rt ? (
                 <Space size={4}>
-                  <Tag color="success" style={{ marginInlineEnd: 0 }}>已保存</Tag>
+                  <Tag color="success" style={{ marginInlineEnd: 0 }}>{ui.saved}</Tag>
                   <Button type="text" size="small" icon={<CopyOutlined />} onClick={() => copyText(rt)} />
                 </Space>
               ) : (
-                <Tag color="default" style={{ marginInlineEnd: 0 }}>缺失</Tag>
+                <Tag color="default" style={{ marginInlineEnd: 0 }}>{ui.missing}</Tag>
               )}
             </div>
           </div>
@@ -1045,7 +1114,7 @@ export default function Accounts() {
       },
     },
     {
-      title: '账号状态',
+      title: ui.accountState,
       dataIndex: 'status',
       key: 'status',
       width: 180,
@@ -1064,7 +1133,7 @@ export default function Accounts() {
   if (isChatgptPlatform) {
     columns.push(
       {
-        title: '本地检查',
+        title: ui.localCheck,
         key: 'chatgpt_local_state',
         width: 250,
         render: (_: any, record: any) => {
@@ -1083,14 +1152,14 @@ export default function Accounts() {
                 <Tag color={codexMeta.color}>Codex {codexMeta.label}</Tag>
               </div>
               <Text type="secondary" style={secondaryTextStyle}>
-                {shortenText(auth.message || codex.message || subscription.workspace_plan_type || '尚未检测')}
+                {shortenText(auth.message || codex.message || subscription.workspace_plan_type || '等待检测')}
               </Text>
             </div>
           )
         },
       },
       {
-        title: '远端同步',
+        title: ui.remoteSync,
         key: 'cliproxy_sync',
         width: 220,
         render: (_: any, record: any) => {
@@ -1101,7 +1170,7 @@ export default function Accounts() {
             <div style={{ ...cellStackStyle, ...compactPanelStyle }}>
               <Tag color={meta.color} style={{ marginInlineEnd: 0, width: 'fit-content' }}>{meta.label}</Tag>
               <Text type="secondary" style={secondaryTextStyle}>
-                {shortenText(sync?.name || sync?.message || '尚未同步')}
+                {shortenText(sync?.name || sync?.message || '等待同步')}
               </Text>
             </div>
           )
@@ -1111,14 +1180,14 @@ export default function Accounts() {
   } else {
     columns.push(
       {
-        title: '地区',
+        title: language === 'zh' ? '地区' : 'Region',
         dataIndex: 'region',
         key: 'region',
         width: 100,
         render: (text: string) => text || '-',
       },
       {
-        title: '试用链接',
+        title: language === 'zh' ? '试用链接' : 'Trial link',
         dataIndex: 'cashier_url',
         key: 'cashier_url',
         width: 120,
@@ -1137,7 +1206,7 @@ export default function Accounts() {
 
   columns.push(
     {
-      title: '注册时间',
+      title: ui.createdAt,
       dataIndex: 'created_at',
       key: 'created_at',
       width: 140,
@@ -1152,18 +1221,18 @@ export default function Accounts() {
       },
     },
     {
-      title: '操作',
+      title: ui.actions,
       key: 'action',
       width: 150,
       fixed: isChatgptPlatform ? 'right' : undefined,
       render: (_: any, record: any) => (
         <Space size={4} wrap>
           <Button type="link" size="small" onClick={() => { setCurrentAccount(record); setDetailModalOpen(true); }}>
-            详情
+            {ui.details}
           </Button>
           <Popconfirm title="确认删除？" onConfirm={() => handleDelete(record.id)}>
             <Button type="link" size="small" danger>
-              删除
+              {ui.delete}
             </Button>
           </Popconfirm>
           <ActionMenu acc={record} onRefresh={load} actions={platformActions} />
@@ -1184,26 +1253,24 @@ export default function Accounts() {
         title={(
           <div className="accounts-summary">
             <div className="accounts-summary__copy">
-              <div className="accounts-summary__title">账号库</div>
-              <div className="accounts-summary__desc">
-                这一页只做账号相关的事：查看、筛选、检查、补传和注册。顶部导航不再单独拆“任务”和“控制台”。
-              </div>
+              <div className="accounts-summary__title">{ui.pageTitle}</div>
+              <div className="accounts-summary__desc">{ui.pageDesc}</div>
             </div>
             <div className="accounts-kpis">
-              <span className="accounts-kpi"><strong>{total}</strong> 总数</span>
-              <span className="accounts-kpi"><strong>{availableCount}</strong> 可用</span>
-              <span className="accounts-kpi"><strong>{pendingUploadCount}</strong> 待补传</span>
-              <span className="accounts-kpi"><strong>{selectedCount}</strong> 已选</span>
+              <span className="accounts-kpi"><strong>{total}</strong> {ui.total}</span>
+              <span className="accounts-kpi"><strong>{availableCount}</strong> {ui.available}</span>
+              <span className="accounts-kpi"><strong>{pendingUploadCount}</strong> {ui.pending}</span>
+              <span className="accounts-kpi"><strong>{selectedCount}</strong> {ui.selected}</span>
             </div>
           </div>
         )}
         actions={(
           <Space wrap>
             <Button icon={<ReloadOutlined spin={loading} />} onClick={load} loading={loading}>
-              刷新列表
+              {ui.refresh}
             </Button>
             <Button type="primary" icon={<RocketOutlined />} onClick={() => setRegisterModalOpen(true)}>
-              开始注册
+              {ui.start}
             </Button>
           </Space>
         )}
@@ -1211,17 +1278,17 @@ export default function Accounts() {
         <div className="accounts-ops">
           <div className="accounts-toolbar">
             <div className="accounts-toolbar__stack">
-              <div className="accounts-toolbar__title">筛选范围</div>
-              <div className="accounts-toolbar__hint">先缩小范围，再执行检查或补传。没有勾选账号时，默认作用于当前筛选结果。</div>
+              <div className="accounts-toolbar__title">{ui.filterTitle}</div>
+              <div className="accounts-toolbar__hint">{ui.filterHint}</div>
               <div className="accounts-toolbar__filters">
               <Input.Search
-                placeholder="搜索邮箱"
+                placeholder={ui.search}
                 allowClear
                 onSearch={setSearch}
                   style={{ width: 260 }}
               />
               <Select
-                placeholder="状态筛选"
+                placeholder={ui.statusFilter}
                 allowClear
                   style={{ width: 180 }}
                 onChange={setFilterStatus}
@@ -1239,15 +1306,15 @@ export default function Accounts() {
               </div>
             </div>
             <div className="accounts-toolbar__stack">
-              <div className="accounts-toolbar__title">导入与录入</div>
-              <div className="accounts-toolbar__hint">导入账号用于批量导入，手动录入用于已有账号，开始注册用于生成新账号。</div>
+              <div className="accounts-toolbar__title">{ui.importTitle}</div>
+              <div className="accounts-toolbar__hint">{ui.importHint}</div>
               <div className="accounts-toolbar__actions">
-                <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>导入账号</Button>
-                <Button icon={<PlusOutlined />} onClick={() => setAddModalOpen(true)}>手动录入</Button>
-                <Button icon={<DownloadOutlined />} onClick={exportCsv} disabled={accounts.length === 0}>导出列表</Button>
+                <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>{ui.import}</Button>
+                <Button icon={<PlusOutlined />} onClick={() => setAddModalOpen(true)}>{ui.manualAdd}</Button>
+                <Button icon={<DownloadOutlined />} onClick={exportCsv} disabled={accounts.length === 0}>{ui.export}</Button>
                 {selectedCount > 0 && (
                   <Popconfirm title={`确认删除选中的 ${selectedCount} 个账号？`} onConfirm={handleBatchDelete}>
-                    <Button danger icon={<DeleteOutlined />}>删除所选</Button>
+                    <Button danger icon={<DeleteOutlined />}>{ui.deleteSelected}</Button>
                   </Popconfirm>
                 )}
               </div>
@@ -1255,8 +1322,8 @@ export default function Accounts() {
           </div>
 
           <div className="accounts-toolbar__stack">
-            <div className="accounts-toolbar__title">检查与补传</div>
-            <div className="accounts-toolbar__hint">本地检查验证 token，远端检查同步 CLIProxyAPI 状态，补传只处理远端缺失项。</div>
+            <div className="accounts-toolbar__title">{ui.maintenanceTitle}</div>
+            <div className="accounts-toolbar__hint">{ui.maintenanceHint}</div>
             <div className="accounts-toolbar__maintenance">
               <Button
                 icon={<SafetyOutlined />}
@@ -1264,7 +1331,7 @@ export default function Accounts() {
                 disabled={getStatusSyncScope() === 'selected' ? selectedCount === 0 : total === 0}
                 onClick={() => handleBatchStatusSync('probe', getStatusSyncScope())}
               >
-                {syncButtonLabel('probe')}
+                {ui.checkLocal} {getStatusSyncScope() === 'selected' ? `(${selectedCount})` : `(${total})`}
               </Button>
               <Button
                 icon={<SyncOutlined />}
@@ -1272,7 +1339,7 @@ export default function Accounts() {
                 disabled={getStatusSyncScope() === 'selected' ? selectedCount === 0 : total === 0}
                 onClick={() => handleBatchStatusSync('remote', getStatusSyncScope())}
               >
-                {syncButtonLabel('remote')}
+                {ui.checkRemote} {getStatusSyncScope() === 'selected' ? `(${selectedCount})` : `(${total})`}
               </Button>
               {currentPlatform === 'chatgpt' && (
                 <Popconfirm
@@ -1288,7 +1355,7 @@ export default function Accounts() {
                     icon={<UploadOutlined />}
                     disabled={getBackfillScope() === 'selected' ? selectedCount === 0 : total === 0}
                   >
-                    {backfillButtonLabel()}
+                    {ui.backfill} {getBackfillScope() === 'selected' ? `(${selectedCount})` : `(${total})`}
                   </Button>
                 </Popconfirm>
               )}
@@ -1298,30 +1365,66 @@ export default function Accounts() {
       </SurfacePanel>
 
       <SurfacePanel
-        title="账号列表"
-        subtitle="重点只保留邮箱、凭证、本地状态和远端状态。双击任意一行可直接打开详情。"
+        title={ui.listTitle}
+        subtitle={ui.listDesc}
         className="accounts-table-shell"
       >
-        <Table
-          className="accounts-table"
-          rowKey="id"
-          columns={columns}
-          dataSource={accounts}
-          loading={loading}
-          size="middle"
-          rowSelection={{
-            selectedRowKeys,
-            onChange: setSelectedRowKeys,
-          }}
-          pagination={{ pageSize: 20, showSizeChanger: false }}
-          scroll={{ x: isChatgptPlatform ? 1440 : 980 }}
-          onRow={(record) => ({
-            onDoubleClick: () => {
-              setCurrentAccount(record)
-              setDetailModalOpen(true)
-            },
-          })}
-        />
+        {isMobile ? (
+          <div className="accounts-mobile-list">
+            {accounts.map((record) => {
+              const statusMeta = accountStatusMeta(record.status)
+              const localMeta = authStateMeta(record.chatgptLocal?.auth?.state)
+              const remoteMeta = cliproxyStateMeta(record.cliproxySync)
+              const created = formatCreatedAt(record.created_at)
+              return (
+                <div key={record.id} className="accounts-mobile-card" onClick={() => { setCurrentAccount(record); setDetailModalOpen(true) }}>
+                  <div className="accounts-mobile-card__head">
+                    <div>
+                      <div className="accounts-mobile-card__email">{record.email}</div>
+                      <div className="accounts-mobile-card__uid">{record.user_id ? `UID: ${record.user_id}` : `#${record.id}`}</div>
+                    </div>
+                    <Tag color={statusMeta.color}>{statusMeta.label}</Tag>
+                  </div>
+                  <div className="accounts-mobile-card__meta">
+                    <Tag color={localMeta.color}>{localMeta.label}</Tag>
+                    <Tag color={remoteMeta.color}>{remoteMeta.label}</Tag>
+                    {getRefreshToken(record) ? <Tag color="success">{ui.saved}</Tag> : <Tag>{ui.missing}</Tag>}
+                  </div>
+                  <div className="accounts-mobile-card__foot">
+                    <span>{created.date} {created.time}</span>
+                    <Space size={4}>
+                      <Button type="link" size="small" onClick={(event) => { event.stopPropagation(); setCurrentAccount(record); setDetailModalOpen(true) }}>{ui.details}</Button>
+                      <Popconfirm title="确认删除？" onConfirm={() => handleDelete(record.id)}>
+                        <Button type="link" size="small" danger onClick={(event) => event.stopPropagation()}>{ui.delete}</Button>
+                      </Popconfirm>
+                    </Space>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <Table
+            className="accounts-table"
+            rowKey="id"
+            columns={columns}
+            dataSource={accounts}
+            loading={loading}
+            size="middle"
+            rowSelection={{
+              selectedRowKeys,
+              onChange: setSelectedRowKeys,
+            }}
+            pagination={{ pageSize: 20, showSizeChanger: false }}
+            scroll={{ x: isChatgptPlatform ? 1440 : 980 }}
+            onRow={(record) => ({
+              onDoubleClick: () => {
+                setCurrentAccount(record)
+                setDetailModalOpen(true)
+              },
+            })}
+          />
+        )}
       </SurfacePanel>
 
       <Modal

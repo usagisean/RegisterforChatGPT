@@ -7,6 +7,7 @@ import { apiFetch } from '@/lib/utils'
 import { clearTrackedTask, getTrackedTask, type TrackedTaskMeta } from '@/lib/taskTracker'
 import { SurfacePanel } from '@/components/SurfacePanel'
 import { TaskLogPanel } from '@/components/TaskLogPanel'
+import { useUi } from '@/lib/ui'
 
 const { Text, Title } = Typography
 
@@ -307,28 +308,34 @@ function heatStatusMeta(status: AccountHeatStatus) {
 }
 
 function renderHeatTooltip(cell: AccountHeatCell) {
+  const labels = {
+    zh: { account: '账号', email: '邮箱', proxy: '代理', stage: '阶段', waitingEmail: '等待生成', waitingProxy: '等待分配' },
+    en: { account: 'Account', email: 'Email', proxy: 'Proxy', stage: 'Stage', waitingEmail: 'Waiting', waitingProxy: 'Pending' },
+  }
+  const language = document.documentElement.dataset.language === 'en' ? 'en' : 'zh'
+  const l = labels[language]
   const meta = heatStatusMeta(cell.status)
 
   return (
     <div className="task-heatmap__tooltip">
       <div className="task-heatmap__tooltip-title">
-        <span>账号 #{cell.index}</span>
+        <span>{l.account} #{cell.index}</span>
         <Tag color="default">{meta.label}</Tag>
       </div>
       <div className="task-heatmap__tooltip-row">
-        <span className="task-heatmap__tooltip-label">邮箱</span>
+        <span className="task-heatmap__tooltip-label">{l.email}</span>
         <span className="task-heatmap__tooltip-value task-heatmap__tooltip-value--mono">
-          {cell.email || '等待生成'}
+          {cell.email || l.waitingEmail}
         </span>
       </div>
       <div className="task-heatmap__tooltip-row">
-        <span className="task-heatmap__tooltip-label">代理</span>
+        <span className="task-heatmap__tooltip-label">{l.proxy}</span>
         <span className="task-heatmap__tooltip-value task-heatmap__tooltip-value--mono">
-          {cell.proxy || '等待分配'}
+          {cell.proxy || l.waitingProxy}
         </span>
       </div>
       <div className="task-heatmap__tooltip-row">
-        <span className="task-heatmap__tooltip-label">阶段</span>
+        <span className="task-heatmap__tooltip-label">{l.stage}</span>
         <span className="task-heatmap__tooltip-value">{cell.detail || meta.label}</span>
       </div>
     </div>
@@ -337,8 +344,10 @@ function renderHeatTooltip(cell: AccountHeatCell) {
 
 export function ActiveTaskMonitor({ showEmptyState = false }: { showEmptyState?: boolean }) {
   const navigate = useNavigate()
+  const { language } = useUi()
   const [trackedTask, setTrackedTask] = useState<TrackedTaskMeta | null>(() => getTrackedTask())
   const [snapshot, setSnapshot] = useState<TaskSnapshot | null>(null)
+  const isZh = language === 'zh'
 
   const syncTrackedTask = useCallback(() => {
     setTrackedTask(getTrackedTask())
@@ -387,17 +396,17 @@ export function ActiveTaskMonitor({ showEmptyState = false }: { showEmptyState?:
     if (showEmptyState) {
       return (
         <SurfacePanel
-          title="当前没有任务"
-          subtitle="你可以先去创建一个注册任务。任务启动后，这里会自动接管日志追踪。"
+          title={isZh ? '当前没有任务' : 'No active task'}
+          subtitle={isZh ? '你可以先去创建一个注册任务。任务启动后，这里会自动接管日志追踪。' : 'Start a registration job first. Once it begins, this panel will follow it automatically.'}
           actions={(
             <Button icon={<EyeOutlined />} onClick={() => navigate('/register')}>
-              打开任务页
+              {isZh ? '打开任务页' : 'Open runs'}
             </Button>
           )}
           className="page-table-shell"
         >
           <div className="empty-copy" style={{ padding: '32px 0' }}>
-            还没有可跟踪的任务。
+            {isZh ? '还没有可跟踪的任务。' : 'Nothing to track yet.'}
           </div>
         </SurfacePanel>
       )
@@ -419,15 +428,15 @@ export function ActiveTaskMonitor({ showEmptyState = false }: { showEmptyState?:
 
   return (
     <SurfacePanel
-      title="实时任务"
-      subtitle="任务在后台执行时，这里会持续跟踪最新日志。"
+      title={isZh ? '实时任务' : 'Live task'}
+      subtitle={isZh ? '任务在后台执行时，这里会持续跟踪最新日志。' : 'While a job is running, this panel keeps following the latest logs.'}
       actions={(
         <Space>
           <Button icon={<EyeOutlined />} onClick={() => navigate('/register')}>
-            打开任务页
+            {isZh ? '打开任务页' : 'Open runs'}
           </Button>
           <Button icon={<CloseOutlined />} onClick={() => clearTrackedTask()}>
-            结束跟踪
+            {isZh ? '结束跟踪' : 'Stop tracking'}
           </Button>
         </Space>
       )}
@@ -436,21 +445,21 @@ export function ActiveTaskMonitor({ showEmptyState = false }: { showEmptyState?:
       <div className="data-toolbar" style={{ marginBottom: 16 }}>
         <div className="data-toolbar__group">
           <Title level={4} style={{ margin: '6px 0 4px' }}>
-            {trackedTask.title || '任务跟踪'}
+            {trackedTask.title || (isZh ? '任务跟踪' : 'Task tracking')}
           </Title>
           <Space wrap>
             <Tag color="success">{trackedTask.platform}</Tag>
             {trackedTask.source ? <Tag>{trackedTask.source}</Tag> : null}
             <Tag color={statusColor(snapshot?.status)}>{snapshot?.status || 'running'}</Tag>
             {snapshot?.progress ? <Tag>{snapshot.progress}</Tag> : null}
-            <Text type="secondary">任务 ID: {trackedTask.taskId}</Text>
+            <Text type="secondary">{isZh ? '任务 ID' : 'Task ID'}: {trackedTask.taskId}</Text>
           </Space>
         </div>
       </div>
       <div className="task-overview">
         <div className="task-overview__summary">
           <div className="task-overview__summary-head">
-            <span>总进度</span>
+            <span>{isZh ? '总进度' : 'Overall progress'}</span>
             <span>{snapshot?.progress || (total > 0 ? `0/${total}` : '0/0')}</span>
           </div>
           <Progress percent={overallPercent} showInfo={false} strokeColor="#22c55e" />
@@ -470,8 +479,8 @@ export function ActiveTaskMonitor({ showEmptyState = false }: { showEmptyState?:
               <div key={lane.slot} className="thread-lane">
                 <div className="thread-lane__head">
                   <div className="thread-lane__title">
-                    <span>线程 {lane.slot}</span>
-                    {lane.accountIndex ? <span className="thread-lane__detail">第 {lane.accountIndex} 个账号</span> : null}
+                    <span>{isZh ? `线程 ${lane.slot}` : `Lane ${lane.slot}`}</span>
+                    {lane.accountIndex ? <span className="thread-lane__detail">{isZh ? `第 ${lane.accountIndex} 个账号` : `Account ${lane.accountIndex}`}</span> : null}
                   </div>
                   <Tag color={meta.color}>{meta.label}</Tag>
                 </div>
@@ -482,7 +491,7 @@ export function ActiveTaskMonitor({ showEmptyState = false }: { showEmptyState?:
                   strokeColor={lane.status === 'failed' ? '#fb7185' : lane.status === 'success' ? '#4ade80' : '#22c55e'}
                 />
                 <div className="thread-lane__meta">
-                  <span>{lane.detail || '等待分配任务'}</span>
+                  <span>{lane.detail || (isZh ? '等待分配任务' : 'Waiting for assignment')}</span>
                   {lane.proxy ? <span className="thread-lane__proxy">{lane.proxy}</span> : null}
                 </div>
               </div>
@@ -492,11 +501,11 @@ export function ActiveTaskMonitor({ showEmptyState = false }: { showEmptyState?:
         {heatmap.length > 0 ? (
           <div className="task-heatmap">
             <div className="task-heatmap__header">
-              <div className="task-heatmap__title">CPA 热力图</div>
+              <div className="task-heatmap__title">{isZh ? 'CPA 热力图' : 'CPA heatmap'}</div>
               <div className="task-heatmap__legend">
-                <span className="task-heatmap__legend-item"><i style={{ background: '#4ade80' }} /> 成功 {heatSuccess}</span>
-                <span className="task-heatmap__legend-item"><i style={{ background: '#fb7185' }} /> 失败 {heatFailed}</span>
-                <span className="task-heatmap__legend-item"><i style={{ background: '#f59e0b' }} /> 待上传</span>
+                <span className="task-heatmap__legend-item"><i style={{ background: '#4ade80' }} /> {isZh ? '成功' : 'Success'} {heatSuccess}</span>
+                <span className="task-heatmap__legend-item"><i style={{ background: '#fb7185' }} /> {isZh ? '失败' : 'Failed'} {heatFailed}</span>
+                <span className="task-heatmap__legend-item"><i style={{ background: '#f59e0b' }} /> {isZh ? '待上传' : 'Pending'}</span>
               </div>
             </div>
             <div className="task-heatmap__grid">

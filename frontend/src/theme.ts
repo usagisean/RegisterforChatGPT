@@ -8,7 +8,7 @@ const sharedComponents = {
     borderRadiusLG: 24,
   },
   Button: {
-    borderRadius: 14,
+    borderRadius: 16,
     controlHeight: 40,
     fontWeight: 600,
   },
@@ -24,6 +24,11 @@ const sharedComponents = {
     borderRadius: 14,
     controlHeight: 44,
   },
+  Segmented: {
+    trackBg: 'rgba(255,255,255,0.04)',
+    itemSelectedBg: 'rgba(120,255,170,0.14)',
+    itemSelectedColor: '#f3f6fb',
+  },
   Table: {
     borderColor: 'rgba(255,255,255,0.08)',
   },
@@ -38,23 +43,23 @@ const sharedComponents = {
 
 const darkTheme = {
   token: {
-    colorPrimary: '#4ade80',
-    colorSuccess: '#4ade80',
+    colorPrimary: '#78ffaa',
+    colorSuccess: '#78ffaa',
     colorWarning: '#f59e0b',
     colorInfo: '#9ca3af',
     colorError: '#fb7185',
     colorBgBase: '#000000',
     colorBgLayout: '#000000',
-    colorBgContainer: '#0a0a0a',
-    colorBgElevated: '#111111',
-    colorFillAlter: 'rgba(255,255,255,0.05)',
+    colorBgContainer: '#090b0b',
+    colorBgElevated: '#0d1010',
+    colorFillAlter: 'rgba(255,255,255,0.04)',
     colorBorder: 'rgba(255,255,255,0.09)',
     colorText: '#f3f6fb',
     colorTextSecondary: '#afb7c7',
     colorTextTertiary: '#7d8595',
     borderRadius: 14,
     borderRadiusLG: 24,
-    boxShadowSecondary: '0 28px 80px rgba(0, 0, 0, 0.55)',
+    boxShadowSecondary: '0 28px 80px rgba(0, 0, 0, 0.45)',
   },
   components: {
     ...sharedComponents,
@@ -66,8 +71,8 @@ const darkTheme = {
     },
     Menu: {
       darkItemBg: 'transparent',
-      darkPopupBg: '#111111',
-      darkItemSelectedBg: 'rgba(255,255,255,0.06)',
+      darkPopupBg: '#0d1010',
+      darkItemSelectedBg: 'rgba(120,255,170,0.08)',
       darkItemSelectedColor: '#eef4ff',
       darkItemHoverBg: 'rgba(255,255,255,0.04)',
       darkItemColor: '#9ca3af',
@@ -87,8 +92,8 @@ const darkTheme = {
 
 const lightTheme = {
   token: {
-    colorPrimary: '#166534',
-    colorSuccess: '#166534',
+    colorPrimary: '#146c43',
+    colorSuccess: '#146c43',
     colorWarning: '#b45309',
     colorInfo: '#4b5563',
     colorError: '#e14b69',
@@ -96,14 +101,14 @@ const lightTheme = {
     colorBgLayout: '#ffffff',
     colorBgContainer: '#ffffff',
     colorBgElevated: '#ffffff',
-    colorFillAlter: 'rgba(18,32,46,0.035)',
+    colorFillAlter: 'rgba(18,32,46,0.03)',
     colorBorder: 'rgba(18,32,46,0.12)',
     colorText: '#050505',
     colorTextSecondary: '#4b5565',
     colorTextTertiary: '#7b8493',
     borderRadius: 14,
     borderRadiusLG: 24,
-    boxShadowSecondary: '0 24px 70px rgba(15, 23, 42, 0.08)',
+    boxShadowSecondary: '0 24px 70px rgba(15, 23, 42, 0.06)',
   },
   components: {
     ...sharedComponents,

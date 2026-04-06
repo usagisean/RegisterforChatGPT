@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
-import { App as AntdApp, ConfigProvider, Button, Spin, Space, Typography } from 'antd'
+import { useEffect, useState } from 'react'
+import { App as AntdApp, ConfigProvider, Button, Spin, Segmented } from 'antd'
 import {
   DashboardOutlined,
   UserOutlined,
@@ -13,6 +13,8 @@ import {
   ThunderboltOutlined,
 } from '@ant-design/icons'
 import zhCN from 'antd/locale/zh_CN'
+import enUS from 'antd/locale/en_US'
+
 import Dashboard from '@/pages/Dashboard'
 import ConsolePage from '@/pages/Console'
 import Accounts from '@/pages/Accounts'
@@ -20,11 +22,64 @@ import RegisterTaskPage from '@/pages/RegisterTaskPage'
 import Proxies from '@/pages/Proxies'
 import Settings from '@/pages/Settings'
 import TaskHistory from '@/pages/TaskHistory'
+import Login from '@/pages/Login'
 import { darkTheme, lightTheme } from './theme'
 import { clearToken, getToken } from '@/lib/utils'
-import Login from '@/pages/Login'
+import { UiProvider, useUi } from '@/lib/ui'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
-const { Text } = Typography
+const copy = {
+  zh: {
+    brand: 'zxai',
+    brandSub: 'ChatGPT 控制台',
+    nav: {
+      dashboard: { label: '总览', hint: '状态与进度' },
+      accounts: { label: '账号', hint: '导入、注册、检查' },
+      history: { label: '历史', hint: '已执行任务' },
+      proxies: { label: '代理', hint: '网络与可用性' },
+      settings: { label: '设置', hint: '服务与安全' },
+    },
+    page: {
+      dashboard: { label: '总览', hint: '先看状态，再决定下一步' },
+      accounts: { label: '账号', hint: '录入、注册、补传都在这一页完成' },
+      history: { label: '历史', hint: '回看任务与结果' },
+      proxies: { label: '代理', hint: '导入、检测和管理代理' },
+      settings: { label: '设置', hint: '连接外部服务并保护入口' },
+      console: { label: '控制台', hint: '实时监控正在执行的任务' },
+    },
+    top: {
+      dark: '夜间',
+      light: '日间',
+      logout: '退出',
+      mobileTitle: '控制台',
+    },
+  },
+  en: {
+    brand: 'zxai',
+    brandSub: 'ChatGPT Console',
+    nav: {
+      dashboard: { label: 'Overview', hint: 'status & progress' },
+      accounts: { label: 'Accounts', hint: 'import, register, verify' },
+      history: { label: 'History', hint: 'completed jobs' },
+      proxies: { label: 'Proxies', hint: 'network & health' },
+      settings: { label: 'Settings', hint: 'services & security' },
+    },
+    page: {
+      dashboard: { label: 'Overview', hint: 'start with signals, then take action' },
+      accounts: { label: 'Accounts', hint: 'import, register and backfill in one place' },
+      history: { label: 'History', hint: 'review past jobs and outcomes' },
+      proxies: { label: 'Proxies', hint: 'import, test and maintain proxies' },
+      settings: { label: 'Settings', hint: 'connect services and secure access' },
+      console: { label: 'Console', hint: 'live monitoring for active jobs' },
+    },
+    top: {
+      dark: 'Dark',
+      light: 'Light',
+      logout: 'Logout',
+      mobileTitle: 'Console',
+    },
+  },
+} as const
 
 function ProtectedLayout() {
   const navigate = useNavigate()
@@ -32,8 +87,8 @@ function ProtectedLayout() {
 
   useEffect(() => {
     fetch('/api/auth/status')
-      .then(r => r.json())
-      .then(s => {
+      .then((r) => r.json())
+      .then((s) => {
         if (s.has_password && !s.authenticated && !getToken()) {
           navigate('/login', { replace: true })
         } else {
@@ -41,11 +96,11 @@ function ProtectedLayout() {
         }
       })
       .catch(() => setReady(true))
-  }, [])
+  }, [navigate])
 
   if (!ready) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="app-loading-shell">
         <Spin size="large" />
       </div>
     )
@@ -55,135 +110,159 @@ function ProtectedLayout() {
 }
 
 function AppContent() {
-  const [themeMode, setThemeMode] = useState<'dark' | 'light'>(() =>
-    (localStorage.getItem('theme') as 'dark' | 'light') || 'dark'
-  )
+  const { themeMode, setThemeMode, language, setLanguage } = useUi()
   const [hasPassword, setHasPassword] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
+  const isLight = themeMode === 'light'
+  const t = copy[language]
 
   useEffect(() => {
-    document.documentElement.classList.toggle('light', themeMode === 'light')
-    document.documentElement.dataset.theme = themeMode
-    document.documentElement.style.setProperty(
-      '--sider-trigger-border',
-      themeMode === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)'
-    )
-    localStorage.setItem('theme', themeMode)
-  }, [themeMode])
-
-  useEffect(() => {
-    fetch('/api/auth/status').then(r => r.json()).then(s => setHasPassword(s.has_password)).catch(() => {})
+    fetch('/api/auth/status').then((r) => r.json()).then((s) => setHasPassword(s.has_password)).catch(() => {})
   }, [])
 
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' })
-    } catch {}
+    } catch {
+      // ignore
+    }
     clearToken()
     navigate('/login')
   }
 
-  const isLight = themeMode === 'light'
-  const currentTheme = isLight ? lightTheme : darkTheme
   const navItems = [
-    { key: '/', icon: <DashboardOutlined />, label: '总览', description: '监控与进度' },
-    { key: '/accounts/chatgpt', icon: <UserOutlined />, label: '账号', description: '筛选与操作' },
-    { key: '/history', icon: <HistoryOutlined />, label: '历史', description: '执行记录' },
-    { key: '/proxies', icon: <GlobalOutlined />, label: '代理', description: '连接管理' },
-    { key: '/settings', icon: <SettingOutlined />, label: '设置', description: '服务与安全' },
+    { key: '/', icon: <DashboardOutlined />, ...t.nav.dashboard },
+    { key: '/accounts/chatgpt', icon: <UserOutlined />, ...t.nav.accounts },
+    { key: '/history', icon: <HistoryOutlined />, ...t.nav.history },
+    { key: '/proxies', icon: <GlobalOutlined />, ...t.nav.proxies },
+    { key: '/settings', icon: <SettingOutlined />, ...t.nav.settings },
   ]
 
   const pageMeta = (() => {
     const path = location.pathname
-    if (path.startsWith('/console')) return { navKey: '/', label: '总览', description: '实时任务监控' }
-    if (path.startsWith('/register')) return { navKey: '/accounts/chatgpt', label: '账号', description: '注册与批量处理' }
-    if (path === '/accounts' || path.startsWith('/accounts')) return { navKey: '/accounts/chatgpt', label: '账号', description: '筛选与操作' }
-    if (path.startsWith('/history')) return { navKey: '/history', label: '历史', description: '执行记录' }
-    if (path.startsWith('/proxies')) return { navKey: '/proxies', label: '代理', description: '连接管理' }
-    if (path.startsWith('/settings')) return { navKey: '/settings', label: '设置', description: '服务与安全' }
-    return { navKey: '/', label: '总览', description: '监控与进度' }
+    if (path.startsWith('/console')) return { navKey: '/', ...t.page.console }
+    if (path.startsWith('/register')) return { navKey: '/accounts/chatgpt', ...t.page.accounts }
+    if (path === '/accounts' || path.startsWith('/accounts')) return { navKey: '/accounts/chatgpt', ...t.page.accounts }
+    if (path.startsWith('/history')) return { navKey: '/history', ...t.page.history }
+    if (path.startsWith('/proxies')) return { navKey: '/proxies', ...t.page.proxies }
+    if (path.startsWith('/settings')) return { navKey: '/settings', ...t.page.settings }
+    return { navKey: '/', ...t.page.dashboard }
   })()
-  const activeNavKey = pageMeta.navKey
 
   useEffect(() => {
-    document.title = `zxai · ${pageMeta.label}`
-  }, [pageMeta.label])
+    document.title = `${t.brand} · ${pageMeta.label}`
+  }, [pageMeta.label, t.brand])
+
+  const renderNavItems = (compact = false) =>
+    navItems.map((item) => {
+      const active = item.key === pageMeta.navKey
+      return (
+        <button
+          key={item.key}
+          type="button"
+          className={`shell-nav__item${active ? ' is-active' : ''}${compact ? ' is-compact' : ''}`}
+          onClick={() => navigate(item.key)}
+        >
+          <span className="shell-nav__icon">{item.icon}</span>
+          <span className="shell-nav__text">
+            <span className="shell-nav__label">{item.label}</span>
+            {!compact ? <span className="shell-nav__hint">{item.hint}</span> : null}
+          </span>
+        </button>
+      )
+    })
 
   return (
-    <ConfigProvider theme={currentTheme} locale={zhCN}>
-      <AntdApp>
-      <div className="app-shell">
-        <aside className="app-sider">
-          <div className="app-brand">
-            <div className="app-brand__badge">
+    <div className="shell">
+      {!isMobile ? (
+        <aside className="shell-sidebar">
+          <div className="shell-brand">
+            <div className="shell-brand__mark">
               <ThunderboltOutlined />
             </div>
-            <div className="app-brand__text">
-              <span className="app-brand__title">zxai</span>
-              <span className="app-brand__subtitle">运营后台</span>
+            <div className="shell-brand__copy">
+              <span className="shell-brand__title">{t.brand}</span>
+              <span className="shell-brand__subtitle">{t.brandSub}</span>
             </div>
           </div>
-          <div className="app-nav">
-            <div className="sidebar-nav">
-              {navItems.map((item) => {
-                const active = item.key === activeNavKey
-                return (
-                  <button
-                    key={item.key}
-                    type="button"
-                    className={`sidebar-nav__item${active ? ' is-active' : ''}`}
-                    onClick={() => navigate(item.key)}
-                  >
-                    <span className="sidebar-nav__icon">{item.icon}</span>
-                    <span className="sidebar-nav__copy">
-                      <span className="sidebar-nav__label">{item.label}</span>
-                      <span className="sidebar-nav__hint">{item.description}</span>
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+          <nav className="shell-nav">
+            <div className="shell-nav__list">{renderNavItems()}</div>
+          </nav>
         </aside>
-        <main className="app-main">
-          <div className="app-topbar">
-            <div className="app-topbar__current">
-              <Text className="app-topbar__section">{pageMeta.label}</Text>
-              <Text className="app-topbar__hint">{pageMeta.description}</Text>
+      ) : null}
+
+      <main className="shell-main">
+        <header className="shell-header">
+          <div className="shell-header__left">
+            <div className="shell-header__page">
+              <div className="shell-header__eyebrow">{t.brand}</div>
+              <div className="shell-header__title">{isMobile ? t.top.mobileTitle : pageMeta.label}</div>
+              <div className="shell-header__hint">{pageMeta.hint}</div>
             </div>
-            <Space wrap>
-              <Button
-                icon={isLight ? <SunOutlined /> : <MoonOutlined />}
-                onClick={() => setThemeMode(isLight ? 'dark' : 'light')}
-              >
-                {isLight ? '亮色模式' : '暗色模式'}
+          </div>
+
+          <div className="shell-header__right">
+            <Segmented
+              size="small"
+              value={language}
+              onChange={(value) => setLanguage(value as 'zh' | 'en')}
+              options={[
+                { label: '中文', value: 'zh' },
+                { label: 'EN', value: 'en' },
+              ]}
+            />
+            <Button
+              type="text"
+              icon={isLight ? <SunOutlined /> : <MoonOutlined />}
+              onClick={() => setThemeMode(isLight ? 'dark' : 'light')}
+            >
+              {isLight ? t.top.light : t.top.dark}
+            </Button>
+            {hasPassword ? (
+              <Button type="text" icon={<LogoutOutlined />} onClick={handleLogout}>
+                {t.top.logout}
               </Button>
-              {hasPassword && (
-                <Button
-                  danger
-                  icon={<LogoutOutlined />}
-                  onClick={handleLogout}
-                >
-                  退出登录
-                </Button>
-              )}
-            </Space>
+            ) : null}
           </div>
-          <div className="content-stage">
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/console" element={<ConsolePage />} />
-              <Route path="/accounts" element={<Accounts />} />
-              <Route path="/accounts/:platform" element={<Accounts />} />
-              <Route path="/register" element={<RegisterTaskPage />} />
-              <Route path="/history" element={<TaskHistory />} />
-              <Route path="/proxies" element={<Proxies />} />
-              <Route path="/settings" element={<Settings />} />
-            </Routes>
-          </div>
-        </main>
-      </div>
+        </header>
+
+        <div className="shell-content">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/console" element={<ConsolePage />} />
+            <Route path="/accounts" element={<Accounts />} />
+            <Route path="/accounts/:platform" element={<Accounts />} />
+            <Route path="/register" element={<RegisterTaskPage />} />
+            <Route path="/history" element={<TaskHistory />} />
+            <Route path="/proxies" element={<Proxies />} />
+            <Route path="/settings" element={<Settings />} />
+          </Routes>
+        </div>
+      </main>
+
+      {isMobile ? (
+        <nav className="shell-mobile-tabs">
+          {renderNavItems(true)}
+        </nav>
+      ) : null}
+    </div>
+  )
+}
+
+function AppRouter() {
+  const { themeMode, language } = useUi()
+  const currentTheme = themeMode === 'light' ? lightTheme : darkTheme
+  return (
+    <ConfigProvider theme={currentTheme} locale={language === 'zh' ? zhCN : enUS}>
+      <AntdApp>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/*" element={<ProtectedLayout />} />
+          </Routes>
+        </BrowserRouter>
       </AntdApp>
     </ConfigProvider>
   )
@@ -191,11 +270,8 @@ function AppContent() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/*" element={<ProtectedLayout />} />
-      </Routes>
-    </BrowserRouter>
+    <UiProvider>
+      <AppRouter />
+    </UiProvider>
   )
 }
