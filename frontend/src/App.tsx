@@ -13,6 +13,8 @@ import {
   ThunderboltOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  WalletOutlined,
+  TeamOutlined,
 } from '@ant-design/icons'
 import zhCN from 'antd/locale/zh_CN'
 import enUS from 'antd/locale/en_US'
@@ -25,6 +27,8 @@ import Proxies from '@/pages/Proxies'
 import Settings from '@/pages/Settings'
 import TaskHistory from '@/pages/TaskHistory'
 import Login from '@/pages/Login'
+import Profile from '@/pages/Profile'
+import UserManagement from '@/pages/UserManagement'
 import { darkTheme, lightTheme } from './theme'
 import { clearToken, getToken } from '@/lib/utils'
 import { UiProvider, useUi } from '@/lib/ui'
@@ -32,7 +36,7 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 
 const copy = {
   zh: {
-    brand: 'zxai',
+    brand: 'NexForge',
     brandSub: '运营后台',
     nav: {
       dashboard: { label: '总览', hint: '监控与进度' },
@@ -40,6 +44,8 @@ const copy = {
       history: { label: '历史', hint: '执行记录' },
       proxies: { label: '代理', hint: '连接管理' },
       settings: { label: '设置', hint: '服务与安全' },
+      profile: { label: '我的', hint: '额度与兑换' },
+      users: { label: '用户', hint: '用户与兑换码' },
     },
     page: {
       dashboard: { label: '总览', hint: '系统概览' },
@@ -48,16 +54,18 @@ const copy = {
       proxies: { label: '代理', hint: '导入、检测、维护' },
       settings: { label: '设置', hint: '连接外部服务并保护入口' },
       console: { label: '控制台', hint: '实时监控正在执行的任务' },
+      profile: { label: '个人中心', hint: '额度信息与兑换码充值' },
+      users: { label: '用户管理', hint: '用户列表与兑换码生成' },
     },
     top: {
       dark: '夜间',
       light: '日间',
       logout: '退出',
-      mobileTitle: 'zxai',
+      mobileTitle: 'NexForge',
     },
   },
   en: {
-    brand: 'zxai',
+    brand: 'NexForge',
     brandSub: 'Operations',
     nav: {
       dashboard: { label: 'Overview', hint: 'monitoring & progress' },
@@ -65,6 +73,8 @@ const copy = {
       history: { label: 'History', hint: 'execution logs' },
       proxies: { label: 'Proxies', hint: 'connectivity' },
       settings: { label: 'Settings', hint: 'services & security' },
+      profile: { label: 'Profile', hint: 'quota & redeem' },
+      users: { label: 'Users', hint: 'users & codes' },
     },
     page: {
       dashboard: { label: 'Overview', hint: 'system overview' },
@@ -73,12 +83,14 @@ const copy = {
       proxies: { label: 'Proxies', hint: 'import, test, maintain' },
       settings: { label: 'Settings', hint: 'connect services and secure access' },
       console: { label: 'Console', hint: 'live monitoring for active jobs' },
+      profile: { label: 'Profile', hint: 'quota info & redeem codes' },
+      users: { label: 'Users', hint: 'user list & redeem codes' },
     },
     top: {
       dark: 'Dark',
       light: 'Light',
       logout: 'Logout',
-      mobileTitle: 'zxai',
+      mobileTitle: 'NexForge',
     },
   },
 } as const
@@ -86,6 +98,7 @@ const copy = {
 function ProtectedLayout() {
   const navigate = useNavigate()
   const [ready, setReady] = useState(false)
+  const [userRole, setUserRole] = useState<string>('user')
 
   useEffect(() => {
     fetch('/api/auth/status')
@@ -94,6 +107,7 @@ function ProtectedLayout() {
         if (s.has_password && !s.authenticated && !getToken()) {
           navigate('/login', { replace: true })
         } else {
+          if (s.user?.role) setUserRole(s.user.role)
           setReady(true)
         }
       })
@@ -108,10 +122,10 @@ function ProtectedLayout() {
     )
   }
 
-  return <AppContent />
+  return <AppContent userRole={userRole} />
 }
 
-function AppContent() {
+function AppContent({ userRole = 'user' }: { userRole?: string }) {
   const { themeMode, setThemeMode, language, setLanguage } = useUi()
   const [hasPassword, setHasPassword] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('zxai-sidebar-collapsed') === '1')
@@ -119,6 +133,7 @@ function AppContent() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
   const isLight = themeMode === 'light'
+  const isAdmin = userRole === 'admin'
   const t = copy[language]
 
   useEffect(() => {
@@ -144,7 +159,9 @@ function AppContent() {
     { key: '/accounts/chatgpt', icon: <UserOutlined />, ...t.nav.accounts },
     { key: '/history', icon: <HistoryOutlined />, ...t.nav.history },
     { key: '/proxies', icon: <GlobalOutlined />, ...t.nav.proxies },
-    { key: '/settings', icon: <SettingOutlined />, ...t.nav.settings },
+    ...(isAdmin ? [{ key: '/settings', icon: <SettingOutlined />, ...t.nav.settings }] : []),
+    { key: '/profile', icon: <WalletOutlined />, ...t.nav.profile },
+    ...(isAdmin ? [{ key: '/user-management', icon: <TeamOutlined />, ...t.nav.users }] : []),
   ]
 
   const pageMeta = (() => {
@@ -155,6 +172,8 @@ function AppContent() {
     if (path.startsWith('/history')) return { navKey: '/history', ...t.page.history }
     if (path.startsWith('/proxies')) return { navKey: '/proxies', ...t.page.proxies }
     if (path.startsWith('/settings')) return { navKey: '/settings', ...t.page.settings }
+    if (path.startsWith('/profile')) return { navKey: '/profile', ...t.page.profile }
+    if (path.startsWith('/user-management')) return { navKey: '/user-management', ...t.page.users }
     return { navKey: '/', ...t.page.dashboard }
   })()
 
@@ -261,6 +280,8 @@ function AppContent() {
             <Route path="/history" element={<TaskHistory />} />
             <Route path="/proxies" element={<Proxies />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/user-management" element={<UserManagement />} />
           </Routes>
         </div>
       </main>

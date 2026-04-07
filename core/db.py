@@ -13,6 +13,47 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///account_manager.db")
 engine = create_engine(DATABASE_URL)
 
 
+class UserModel(SQLModel, table=True):
+    """多用户系统 - 用户表"""
+    __tablename__ = "users"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(index=True, sa_column_kwargs={"unique": True})
+    password_hash: str
+    role: str = "user"  # admin / user
+    quota: int = 0  # 剩余额度
+    total_redeemed: int = 0  # 累计充值额度
+    total_consumed: int = 0  # 累计消耗额度
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+
+class RedeemCodeModel(SQLModel, table=True):
+    """兑换码表"""
+    __tablename__ = "redeem_codes"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: str = Field(index=True, sa_column_kwargs={"unique": True})
+    quota: int = 1  # 兑换额度
+    used_by: Optional[int] = Field(default=None, index=True)  # 使用者 user_id
+    used_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=_utcnow)
+
+
+class QuotaLogModel(SQLModel, table=True):
+    """额度流水表"""
+    __tablename__ = "quota_logs"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True)
+    change: int  # 正数=充值，负数=消耗
+    balance_after: int  # 变动后余额
+    reason: str = ""  # 原因描述
+    created_at: datetime = Field(default_factory=_utcnow)
+
+
 class AccountModel(SQLModel, table=True):
     __tablename__ = "accounts"
 
@@ -27,6 +68,7 @@ class AccountModel(SQLModel, table=True):
     trial_end_time: int = 0
     cashier_url: str = ""
     extra_json: str = "{}"   # JSON 存储平台自定义字段
+    owner_id: Optional[int] = Field(default=None, index=True)  # 所属用户
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 
@@ -46,7 +88,9 @@ class TaskLog(SQLModel, table=True):
     status: str        # success | failed
     error: str = ""
     detail_json: str = "{}"
+    owner_id: Optional[int] = Field(default=None, index=True)  # 所属用户
     created_at: datetime = Field(default_factory=_utcnow)
+
 
 
 class OutlookAccountModel(SQLModel, table=True):
@@ -75,7 +119,7 @@ class ProxyModel(SQLModel, table=True):
     last_checked: Optional[datetime] = None
 
 
-def save_account(account) -> 'AccountModel':
+def save_account(account, owner_id: int = None) -> 'AccountModel':
     """从 base_platform.Account 存入数据库（同平台同邮箱则更新）"""
     with Session(engine) as session:
         existing = session.exec(
@@ -91,6 +135,8 @@ def save_account(account) -> 'AccountModel':
             existing.status = account.status.value
             existing.extra_json = json.dumps(account.extra or {}, ensure_ascii=False)
             existing.cashier_url = (account.extra or {}).get("cashier_url", "")
+            if owner_id is not None:
+                existing.owner_id = owner_id
             existing.updated_at = _utcnow()
             session.add(existing)
             session.commit()
@@ -106,6 +152,7 @@ def save_account(account) -> 'AccountModel':
             status=account.status.value,
             extra_json=json.dumps(account.extra or {}, ensure_ascii=False),
             cashier_url=(account.extra or {}).get("cashier_url", ""),
+            owner_id=owner_id,
         )
         session.add(m)
         session.commit()

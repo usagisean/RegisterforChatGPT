@@ -19,6 +19,8 @@ from api.config import router as config_router
 from api.actions import router as actions_router
 from api.integrations import router as integrations_router
 from api.auth import router as auth_router
+from api.users import router as users_router
+from api.redeem import router as redeem_router
 from api.outlook import router as outlook_router
 from api.system import router as system_router
 
@@ -140,6 +142,8 @@ app.include_router(config_router, prefix="/api")
 app.include_router(actions_router, prefix="/api")
 app.include_router(integrations_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
+app.include_router(users_router, prefix="/api")
+app.include_router(redeem_router, prefix="/api")
 app.include_router(outlook_router, prefix="/api")
 app.include_router(system_router, prefix="/api")
 

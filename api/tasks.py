@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
@@ -12,6 +12,7 @@ from core.task_runtime import (
     SkipCurrentAttemptRequested,
     StopTaskRequested,
 )
+from api.auth import get_current_user
 import time, json, asyncio, threading, logging
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -36,6 +37,8 @@ class RegisterTaskRequest(BaseModel):
     executor_type: str = "protocol"
     captcha_solver: str = "yescaptcha"
     extra: dict = Field(default_factory=dict)
+    # NOTE: 内部使用，不由前端直接传入
+    owner_id: Optional[int] = None
 
 
 class TaskLogBatchDeleteRequest(BaseModel):
@@ -133,7 +136,7 @@ def _log(task_id: str, msg: str):
 
 
 def _save_task_log(
-    platform: str, email: str, status: str, error: str = "", detail: dict = None
+    platform: str, email: str, status: str, error: str = "", detail: dict = None, owner_id: int = None
 ):
     """Write a TaskLog record to the database."""
     with Session(engine) as s:
@@ -143,23 +146,45 @@ def _save_task_log(
             status=status,
             error=error,
             detail_json=json.dumps(detail or {}, ensure_ascii=False),
+            owner_id=owner_id,
         )
         s.add(log)
         s.commit()
 
 
-def _auto_upload_integrations(task_id: str, account):
-    """注册成功后自动导入外部系统。"""
+def _auto_upload_integrations(task_id: str, account, owner_id: int = None):
+    """
+    注册成功后自动导入外部系统。
+    CPA 上传成功时扣除用户额度（核心计费逻辑）。
+    """
+    has_integration = False
+    any_cpa_success = False
     try:
         from services.external_sync import sync_account
 
-        for result in sync_account(account):
+        results = list(sync_account(account))
+        if results:
+            has_integration = True
+        for result in results:
             name = result.get("name", "Auto Upload")
             ok = bool(result.get("ok"))
             msg = result.get("msg", "")
             _log(task_id, f"  [{name}] {'[OK] ' + msg if ok else '[FAIL] ' + msg}")
+            if ok:
+                any_cpa_success = True
     except Exception as e:
         _log(task_id, f"  [Auto Upload] 自动导入异常: {e}")
+
+    # 扣额度逻辑：CPA 上传成功扣 1 额度；如果没配 CPA 则注册成功即扣
+    if owner_id and owner_id > 0:
+        should_deduct = any_cpa_success or (not has_integration)
+        if should_deduct:
+            from core.quota import deduct_quota
+            deducted = deduct_quota(owner_id, 1, reason=f"cpa_upload:{task_id}")
+            if deducted:
+                _log(task_id, f"  [额度] 已扣除 1 额度")
+            else:
+                _log(task_id, f"  [额度] 扣除失败（余额不足）")
 
 
 def _run_register(task_id: str, req: RegisterTaskRequest):
@@ -294,12 +319,16 @@ def _run_register(task_id: str, req: RegisterTaskRequest):
                                 "luckmail_base_url",
                                 merged_extra.get("luckmail_base_url"),
                             )
-                saved_account = save_account(account)
+                # 将 owner_id 写入账号记录
+                if req.owner_id:
+                    account.extra = account.extra or {}
+                    account.extra["_owner_id"] = req.owner_id
+                saved_account = save_account(account, owner_id=req.owner_id)
                 if _proxy:
                     proxy_pool.report_success(_proxy)
                 _log(task_id, f"[OK] 注册成功: {account.email}")
-                _save_task_log(req.platform, account.email, "success")
-                _auto_upload_integrations(task_id, saved_account or account)
+                _save_task_log(req.platform, account.email, "success", owner_id=req.owner_id)
+                _auto_upload_integrations(task_id, saved_account or account, owner_id=req.owner_id)
                 cashier_url = (account.extra or {}).get("cashier_url", "")
                 if cashier_url:
                     _log(task_id, f"  [升级链接] {cashier_url}")
@@ -312,6 +341,7 @@ def _run_register(task_id: str, req: RegisterTaskRequest):
                     current_email,
                     "skipped",
                     error=str(e),
+                    owner_id=req.owner_id,
                 )
                 return AttemptResult.skipped(str(e))
             except StopTaskRequested as e:
@@ -326,6 +356,7 @@ def _run_register(task_id: str, req: RegisterTaskRequest):
                     current_email,
                     "failed",
                     error=str(e),
+                    owner_id=req.owner_id,
                 )
                 return AttemptResult.failed(str(e))
             finally:
@@ -394,7 +425,23 @@ def _run_register(task_id: str, req: RegisterTaskRequest):
 def create_register_task(
     req: RegisterTaskRequest,
     background_tasks: BackgroundTasks,
+    user: dict = Depends(get_current_user),
 ):
+    uid = user.get("uid", 0)
+    role = user.get("role", "admin")
+
+    # 管理员不受额度限制
+    if role != "admin" and uid > 0:
+        from core.quota import get_user_quota
+        current_quota = get_user_quota(uid)
+        if current_quota < req.count:
+            raise HTTPException(
+                403,
+                f"额度不足：当前剩余 {current_quota}，本次需要 {req.count}",
+            )
+
+    # 将 owner_id 注入请求
+    req.owner_id = uid
     task_id = enqueue_register_task(req, background_tasks=background_tasks)
     return {"task_id": task_id}
 

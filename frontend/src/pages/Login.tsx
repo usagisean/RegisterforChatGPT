@@ -1,19 +1,24 @@
 import { useEffect, useState } from 'react'
-import { App, Form, Input, Button, Typography, Space, Segmented } from 'antd'
-import { LockOutlined, SafetyCertificateOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons'
+import { App, Form, Input, Button, Typography, Space, Segmented, Tabs } from 'antd'
+import { LockOutlined, SafetyCertificateOutlined, SunOutlined, MoonOutlined, UserOutlined } from '@ant-design/icons'
 
 import { setToken } from '@/lib/utils'
 import { useUi } from '@/lib/ui'
 
-type Step = 'password' | '2fa'
+type Step = 'login' | 'register' | '2fa'
 
 const copy = {
   zh: {
-    title: 'ZXAI',
+    title: 'zxaiNexForge',
     subtitle: '控制中心',
-    accessLabel: '管理员密钥',
-    accessPlaceholder: '输入管理员密钥',
+    loginTab: '登录',
+    registerTab: '注册',
+    usernameLabel: '用户名',
+    usernamePlaceholder: '输入用户名',
+    accessLabel: '密码',
+    accessPlaceholder: '输入密码',
     accessButton: '登录',
+    registerButton: '注册',
     verifyTitle: '二次验证',
     verifyDesc: '输入 6 位验证码',
     verifyLabel: '验证码',
@@ -21,16 +26,23 @@ const copy = {
     verifyButton: '验证',
     back: '返回',
     loginError: '登录失败',
+    registerError: '注册失败',
     verifyError: '验证失败',
+    registerSuccess: '注册成功',
     themeDark: '深色',
     themeLight: '浅色',
   },
   en: {
-    title: 'ZXAI',
+    title: 'zxaiNexForge',
     subtitle: 'Control Center',
-    accessLabel: 'Admin key',
-    accessPlaceholder: 'Enter admin key',
+    loginTab: 'Sign In',
+    registerTab: 'Sign Up',
+    usernameLabel: 'Username',
+    usernamePlaceholder: 'Enter username',
+    accessLabel: 'Password',
+    accessPlaceholder: 'Enter password',
     accessButton: 'Sign in',
+    registerButton: 'Sign up',
     verifyTitle: 'Two-factor verification',
     verifyDesc: 'Enter the 6-digit code',
     verifyLabel: 'Verification code',
@@ -38,7 +50,9 @@ const copy = {
     verifyButton: 'Continue',
     back: 'Back',
     loginError: 'Login failed',
+    registerError: 'Registration failed',
     verifyError: 'Verification failed',
+    registerSuccess: 'Registration successful',
     themeDark: 'Dark',
     themeLight: 'Light',
   },
@@ -47,22 +61,23 @@ const copy = {
 function LoginContent() {
   const { message } = App.useApp()
   const { language, setLanguage, themeMode, setThemeMode } = useUi()
-  const [step, setStep] = useState<Step>('password')
+  const [step, setStep] = useState<Step>('login')
   const [tempToken, setTempToken] = useState('')
   const [loading, setLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState('login')
   const t = copy[language]
 
   useEffect(() => {
-    document.title = 'zxai'
+    document.title = 'zxaiNexForge'
   }, [])
 
-  const handleLogin = async (values: { password: string }) => {
+  const handleLogin = async (values: { username: string; password: string }) => {
     setLoading(true)
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: values.password }),
+        body: JSON.stringify({ username: values.username || '', password: values.password }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || t.loginError)
@@ -73,6 +88,26 @@ function LoginContent() {
         setToken(data.access_token)
         window.location.href = '/'
       }
+    } catch (error: any) {
+      message.error(error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRegister = async (values: { username: string; password: string }) => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: values.username, password: values.password }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || t.registerError)
+      message.success(t.registerSuccess)
+      setToken(data.access_token)
+      window.location.href = '/'
     } catch (error: any) {
       message.error(error.message)
     } finally {
@@ -98,6 +133,60 @@ function LoginContent() {
       setLoading(false)
     }
   }
+
+  const loginForm = (
+    <Form layout="vertical" onFinish={handleLogin} requiredMark={false}>
+      <Form.Item
+        name="username"
+        label={t.usernameLabel}
+        rules={[{ required: true, message: t.usernameLabel }]}
+      >
+        <Input prefix={<UserOutlined />} placeholder={t.usernamePlaceholder} size="large" />
+      </Form.Item>
+      <Form.Item
+        name="password"
+        label={t.accessLabel}
+        rules={[{ required: true, message: t.accessLabel }]}
+      >
+        <Input.Password prefix={<LockOutlined />} placeholder={t.accessPlaceholder} size="large" />
+      </Form.Item>
+      <Form.Item style={{ marginBottom: 0, marginTop: 10 }}>
+        <Button type="primary" htmlType="submit" block size="large" loading={loading}>
+          {t.accessButton}
+        </Button>
+      </Form.Item>
+    </Form>
+  )
+
+  const registerForm = (
+    <Form layout="vertical" onFinish={handleRegister} requiredMark={false}>
+      <Form.Item
+        name="username"
+        label={t.usernameLabel}
+        rules={[
+          { required: true, message: t.usernameLabel },
+          { min: 2, message: language === 'zh' ? '用户名至少 2 个字符' : 'At least 2 characters' },
+        ]}
+      >
+        <Input prefix={<UserOutlined />} placeholder={t.usernamePlaceholder} size="large" />
+      </Form.Item>
+      <Form.Item
+        name="password"
+        label={t.accessLabel}
+        rules={[
+          { required: true, message: t.accessLabel },
+          { min: 6, message: language === 'zh' ? '密码至少 6 位' : 'At least 6 characters' },
+        ]}
+      >
+        <Input.Password prefix={<LockOutlined />} placeholder={t.accessPlaceholder} size="large" />
+      </Form.Item>
+      <Form.Item style={{ marginBottom: 0, marginTop: 10 }}>
+        <Button type="primary" htmlType="submit" block size="large" loading={loading}>
+          {t.registerButton}
+        </Button>
+      </Form.Item>
+    </Form>
+  )
 
   return (
     <div className="login-scene login-scene--simple">
@@ -162,26 +251,21 @@ function LoginContent() {
                   </Button>
                 </Form.Item>
                 <div className="login-panel__footer">
-                  <Button type="link" size="small" onClick={() => setStep('password')}>
+                  <Button type="link" size="small" onClick={() => setStep('login')}>
                     {t.back}
                   </Button>
                 </div>
               </Form>
             ) : (
-              <Form layout="vertical" onFinish={handleLogin} requiredMark={false}>
-                <Form.Item
-                  name="password"
-                  label={t.accessLabel}
-                  rules={[{ required: true, message: t.accessLabel }]}
-                >
-                  <Input.Password prefix={<LockOutlined />} placeholder={t.accessPlaceholder} size="large" />
-                </Form.Item>
-                <Form.Item style={{ marginBottom: 0, marginTop: 10 }}>
-                  <Button type="primary" htmlType="submit" block size="large" loading={loading}>
-                    {t.accessButton}
-                  </Button>
-                </Form.Item>
-              </Form>
+              <Tabs
+                activeKey={activeTab}
+                onChange={setActiveTab}
+                centered
+                items={[
+                  { key: 'login', label: t.loginTab, children: loginForm },
+                  { key: 'register', label: t.registerTab, children: registerForm },
+                ]}
+              />
             )}
           </div>
         </section>

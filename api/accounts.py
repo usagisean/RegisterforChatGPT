@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select, func
 from pydantic import BaseModel
 from core.db import AccountModel, get_session
+from api.auth import get_current_user
 from typing import Optional
 from datetime import datetime, timezone
 import io, csv, json, logging
@@ -44,8 +45,12 @@ def list_accounts(
     page: int = 1,
     page_size: int = 20,
     session: Session = Depends(get_session),
+    user: dict = Depends(get_current_user),
 ):
     q = select(AccountModel)
+    # 普通用户只能看自己的账号
+    if user.get("role") != "admin":
+        q = q.where(AccountModel.owner_id == user.get("uid"))
     if platform:
         q = q.where(AccountModel.platform == platform)
     if status:
@@ -74,9 +79,15 @@ def create_account(body: AccountCreate, session: Session = Depends(get_session))
 
 
 @router.get("/stats")
-def get_stats(session: Session = Depends(get_session)):
+def get_stats(
+    session: Session = Depends(get_session),
+    user: dict = Depends(get_current_user),
+):
     """统计各平台账号数量和状态分布"""
-    accounts = session.exec(select(AccountModel)).all()
+    q = select(AccountModel)
+    if user.get("role") != "admin":
+        q = q.where(AccountModel.owner_id == user.get("uid"))
+    accounts = session.exec(q).all()
     platforms: dict = {}
     statuses: dict = {}
     for acc in accounts:
@@ -90,8 +101,11 @@ def export_accounts(
     platform: Optional[str] = None,
     status: Optional[str] = None,
     session: Session = Depends(get_session),
+    user: dict = Depends(get_current_user),
 ):
     q = select(AccountModel)
+    if user.get("role") != "admin":
+        q = q.where(AccountModel.owner_id == user.get("uid"))
     if platform:
         q = q.where(AccountModel.platform == platform)
     if status:
