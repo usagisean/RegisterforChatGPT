@@ -245,6 +245,12 @@ function AppContent() {
           </div>
         </header>
 
+        {isMobile ? (
+          <nav className="shell-mobile-tabs">
+            {renderNavItems(true)}
+          </nav>
+        ) : null}
+
         <div className="shell-content">
           <Routes>
             <Route path="/" element={<Dashboard />} />
@@ -258,12 +264,6 @@ function AppContent() {
           </Routes>
         </div>
       </main>
-
-      {isMobile ? (
-        <nav className="shell-mobile-tabs">
-          {renderNavItems(true)}
-        </nav>
-      ) : null}
     </div>
   )
 }

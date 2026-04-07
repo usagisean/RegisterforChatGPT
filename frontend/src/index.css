@@ -380,14 +380,17 @@ select {
 }
 
 .shell-mobile-tabs {
-  position: fixed;
-  left: max(12px, env(safe-area-inset-left));
-  right: max(12px, env(safe-area-inset-right));
-  bottom: max(12px, env(safe-area-inset-bottom));
+  position: relative;
   z-index: 30;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
+  width: auto;
+  margin:
+    10px
+    max(12px, env(safe-area-inset-right))
+    0
+    max(12px, env(safe-area-inset-left));
   padding: 8px;
   border: 1px solid var(--border);
   border-radius: 28px;
@@ -2142,5 +2145,225 @@ select {
 
   .shell-nav__item.is-compact .shell-nav__label {
     font-size: 0.72rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .shell-main {
+    min-height: 100svh;
+  }
+
+  .shell-header {
+    gap: 12px;
+    border-bottom-color: var(--border-soft);
+  }
+
+  .shell-header__page {
+    gap: 2px;
+  }
+
+  .shell-header__title {
+    font-size: 1.05rem;
+  }
+
+  .shell-header__hint {
+    font-size: 0.78rem;
+  }
+
+  .shell-header__right {
+    display: grid;
+    grid-template-columns: auto auto auto;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .shell-header__right .ant-segmented,
+  .shell-header__right .ant-btn {
+    min-height: 36px;
+  }
+
+  .shell-header__right .ant-btn {
+    justify-content: center;
+    padding-inline: 8px;
+  }
+
+  .shell-content {
+    padding:
+      14px
+      calc(12px + env(safe-area-inset-right))
+      calc(36px + env(safe-area-inset-bottom))
+      calc(12px + env(safe-area-inset-left));
+  }
+
+  .shell-mobile-tabs {
+    margin:
+      10px
+      max(10px, env(safe-area-inset-right))
+      0
+      max(10px, env(safe-area-inset-left));
+    gap: 4px;
+    padding: 6px;
+    border-radius: 24px;
+  }
+
+  .shell-nav__item.is-compact {
+    gap: 5px;
+    padding: 8px 4px;
+    border-radius: 18px;
+  }
+
+  .shell-nav__item.is-compact .shell-nav__icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 13px;
+    font-size: 15px;
+  }
+
+  .shell-nav__item.is-compact .shell-nav__label {
+    font-size: 0.68rem;
+    line-height: 1.1;
+  }
+
+  .surface-panel,
+  .page-table-shell,
+  .settings-nav-panel,
+  .settings-content-panel,
+  .register-shell__main,
+  .register-shell__side,
+  .page-hero {
+    border-radius: 24px;
+  }
+
+  .surface-panel__header,
+  .surface-panel__body,
+  .dashboard-overview__body {
+    padding: 16px;
+  }
+
+  .dashboard-overview__head {
+    gap: 12px;
+  }
+
+  .dashboard-overview__title {
+    font-size: clamp(1.7rem, 10vw, 2.35rem);
+    letter-spacing: -0.07em;
+  }
+
+  .dashboard-overview__subtitle {
+    font-size: 0.88rem;
+  }
+
+  .dashboard-overview__meta {
+    gap: 6px;
+  }
+
+  .dashboard-overview__meta span {
+    min-height: 30px;
+    padding: 0 10px;
+    font-size: 0.75rem;
+  }
+
+  .dashboard-metrics,
+  .dashboard-metrics--four,
+  .dashboard-metrics--three {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .dashboard-metrics--dense .stat-tile,
+  .stat-tile {
+    min-height: 112px;
+    padding: 16px;
+    gap: 10px;
+    border-radius: 20px;
+  }
+
+  .stat-tile__meta {
+    gap: 8px;
+  }
+
+  .stat-tile__label {
+    font-size: 0.78rem;
+  }
+
+  .stat-tile__value {
+    font-size: clamp(1.8rem, 12vw, 2.45rem);
+  }
+
+  .stat-tile__icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 15px;
+    font-size: 18px;
+  }
+
+  .server-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .server-card {
+    min-height: 112px;
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .server-card__value {
+    max-width: calc(100% - 48px);
+    font-size: 1.08rem;
+  }
+
+  .server-card__note {
+    font-size: 0.8rem;
+  }
+
+  .server-card__icon {
+    top: 14px;
+    right: 14px;
+    width: 38px;
+    height: 38px;
+    border-radius: 13px;
+  }
+
+  .server-inline {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .server-inline__item {
+    min-height: 52px;
+    padding: 12px 14px;
+  }
+
+  .page-shell,
+  .page-shell--dashboard {
+    gap: 14px;
+  }
+}
+
+@media (max-width: 420px) {
+  .shell-header__right .ant-btn {
+    font-size: 0;
+  }
+
+  .shell-header__right .ant-btn .anticon {
+    margin-inline-end: 0 !important;
+    font-size: 16px;
+  }
+
+  .dashboard-metrics,
+  .dashboard-metrics--four,
+  .dashboard-metrics--three {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .stat-tile {
+    min-height: 102px;
+    padding: 14px;
+  }
+
+  .stat-tile__icon {
+    width: 36px;
+    height: 36px;
   }
 }

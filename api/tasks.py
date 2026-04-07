@@ -487,6 +487,23 @@ async def stream_logs(task_id: str, since: int = 0):
     )
 
 
+@router.get("/active")
+def get_active_task():
+    snapshots = _task_store.list_snapshots()
+    active_tasks = [
+        task
+        for task in snapshots
+        if task.get("status") in ("pending", "running")
+    ]
+    if not active_tasks:
+        return {"task": None}
+    active_tasks.sort(
+        key=lambda task: float(task.get("updated_at") or task.get("created_at") or 0),
+        reverse=True,
+    )
+    return {"task": active_tasks[0]}
+
+
 @router.get("/{task_id}")
 def get_task(task_id: str):
     _ensure_task_exists(task_id)

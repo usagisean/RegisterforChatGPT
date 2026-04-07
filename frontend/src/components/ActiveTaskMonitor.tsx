@@ -4,7 +4,7 @@ import { Button, Progress, Space, Tag, Tooltip, Typography } from 'antd'
 import { CloseOutlined, EyeOutlined } from '@ant-design/icons'
 
 import { apiFetch } from '@/lib/utils'
-import { clearTrackedTask, getTrackedTask, type TrackedTaskMeta } from '@/lib/taskTracker'
+import { clearTrackedTask, getServerTrackedTask, getTrackedTask, type TrackedTaskMeta } from '@/lib/taskTracker'
 import { SurfacePanel } from '@/components/SurfacePanel'
 import { TaskLogPanel } from '@/components/TaskLogPanel'
 import { useUi } from '@/lib/ui'
@@ -345,20 +345,40 @@ function renderHeatTooltip(cell: AccountHeatCell) {
 export function ActiveTaskMonitor({ showEmptyState = false }: { showEmptyState?: boolean }) {
   const navigate = useNavigate()
   const { language } = useUi()
-  const [trackedTask, setTrackedTask] = useState<TrackedTaskMeta | null>(() => getTrackedTask())
+  const [trackedTask, setTrackedTaskState] = useState<TrackedTaskMeta | null>(() => getTrackedTask())
   const [snapshot, setSnapshot] = useState<TaskSnapshot | null>(null)
+  const [dismissedTaskId, setDismissedTaskId] = useState<string | null>(null)
   const isZh = language === 'zh'
 
   const syncTrackedTask = useCallback(() => {
-    setTrackedTask(getTrackedTask())
-  }, [])
+    const localTask = getTrackedTask()
+    void getServerTrackedTask().then((serverTask) => {
+      const nextTask = serverTask || localTask
+      if (nextTask?.taskId && nextTask.taskId === dismissedTaskId) {
+        setTrackedTaskState(null)
+        return
+      }
+      setTrackedTaskState(nextTask)
+    })
+  }, [dismissedTaskId])
+
+  const handleStopTracking = useCallback(() => {
+    if (trackedTask?.taskId) {
+      setDismissedTaskId(trackedTask.taskId)
+    }
+    clearTrackedTask()
+    setTrackedTaskState(null)
+    setSnapshot(null)
+  }, [trackedTask?.taskId])
 
   useEffect(() => {
     syncTrackedTask()
-    const handler = () => syncTrackedTask()
+    const timer = window.setInterval(syncTrackedTask, 5000)
+    const handler = () => void syncTrackedTask()
     window.addEventListener('storage', handler)
     window.addEventListener('tracked-task-change', handler as EventListener)
     return () => {
+      window.clearInterval(timer)
       window.removeEventListener('storage', handler)
       window.removeEventListener('tracked-task-change', handler as EventListener)
     }
@@ -435,7 +455,7 @@ export function ActiveTaskMonitor({ showEmptyState = false }: { showEmptyState?:
           <Button icon={<EyeOutlined />} onClick={() => navigate('/register')}>
             {isZh ? '打开任务页' : 'Open runs'}
           </Button>
-          <Button icon={<CloseOutlined />} onClick={() => clearTrackedTask()}>
+          <Button icon={<CloseOutlined />} onClick={handleStopTracking}>
             {isZh ? '结束跟踪' : 'Stop tracking'}
           </Button>
         </Space>
