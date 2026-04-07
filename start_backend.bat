@@ -2,7 +2,7 @@
 setlocal
 
 set "ENV_NAME=%APP_CONDA_ENV%"
-if "%ENV_NAME%"=="" set "ENV_NAME=any-auto-register"
+if "%ENV_NAME%"=="" set "ENV_NAME=zxaiNexForge"
 set "HOST=%HOST%"
 if "%HOST%"=="" set "HOST=0.0.0.0"
 set "PORT=%PORT%"

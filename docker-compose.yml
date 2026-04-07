@@ -7,7 +7,7 @@ services:
         CAMOUFOX_VERSION: ${CAMOUFOX_VERSION:-135.0.1}
         CAMOUFOX_RELEASE: ${CAMOUFOX_RELEASE:-beta.24}
         INSTALL_CAMOUFOX: ${INSTALL_CAMOUFOX:-0}
-    container_name: any-auto-register
+    container_name: zxainexforge
     init: true
     restart: unless-stopped
     environment:

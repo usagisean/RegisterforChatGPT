@@ -1,5 +1,5 @@
 param(
-    [string]$EnvName = "any-auto-register",
+    [string]$EnvName = "zxaiNexForge",
     [string]$BindHost = "0.0.0.0",
     [int]$Port = 8000,
     [switch]$RestartExisting = $true

@@ -18,7 +18,7 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 _bearer = HTTPBearer(auto_error=False)
-SESSION_COOKIE_NAME = "zxai_session"
+SESSION_COOKIE_NAME = "zxainexforge_session"
 
 
 # ── Config helpers ─────────────────────────────────────────────────────────────
@@ -150,7 +150,7 @@ def generate_totp_secret() -> str:
     return base64.b32encode(secrets.token_bytes(20)).decode()
 
 
-def totp_uri(secret: str, issuer: str = "zxai") -> str:
+def totp_uri(secret: str, issuer: str = "zxaiNexForge") -> str:
     from urllib.parse import quote
     return f"otpauth://totp/{quote(issuer)}?secret={secret}&issuer={quote(issuer)}"
 

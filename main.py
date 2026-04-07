@@ -22,7 +22,7 @@ from api.auth import router as auth_router
 from api.outlook import router as outlook_router
 from api.system import router as system_router
 
-EXPECTED_CONDA_ENV = os.getenv("APP_CONDA_ENV", "any-auto-register")
+EXPECTED_CONDA_ENV = os.getenv("APP_CONDA_ENV", "zxaiNexForge")
 
 
 def _detect_conda_env() -> str:
@@ -75,7 +75,7 @@ async def lifespan(app: FastAPI):
     stop()
 
 
-app = FastAPI(title="zxai", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="zxaiNexForge", version="1.0.0", lifespan=lifespan)
 
 
 @app.middleware("http")
